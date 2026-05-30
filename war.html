@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>War — P's Card Play</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { background: radial-gradient(ellipse at 50% 30%, #2d7a50 0%, #1b4d35 65%, #0f2d1f 100%); min-height: 100vh; font-family: 'Segoe UI', system-ui, sans-serif; }
+    .gold { color: #f0c040; }
+    .glass { background: rgba(0,0,0,0.35); border: 1px solid rgba(255,215,0,0.2); }
+    .btn-gold { background: linear-gradient(135deg, #b8860b, #f0c040, #b8860b); color: #1a1000; font-weight: 700; transition: all 0.2s; box-shadow: 0 4px 14px rgba(240,192,64,.3); }
+    .btn-gold:hover { filter: brightness(1.1); transform: translateY(-1px); }
+    .btn-gold:active { transform: translateY(0); }
+    .btn-gold:disabled { opacity: .5; cursor: not-allowed; transform: none; filter: none; }
+
+    .card-big { width: 110px; height: 154px; border-radius: 10px; overflow: hidden; border: 2px solid rgba(255,255,255,.2); box-shadow: 0 8px 24px rgba(0,0,0,.5); flex-shrink: 0; background: #1c3878; transition: all 0.3s; }
+    .card-big img { width: 100%; height: 100%; object-fit: cover; }
+    .card-big.win { border-color: #f0c040; box-shadow: 0 0 22px rgba(240,192,64,.6), 0 8px 24px rgba(0,0,0,.5); transform: scale(1.06); }
+    .card-big.lose { opacity: .45; }
+
+    .war-card { width: 48px; height: 67px; border-radius: 6px; overflow: hidden; border: 1px solid rgba(255,255,255,.2); background: #1c3878; flex-shrink: 0; }
+    .war-card img { width: 100%; height: 100%; object-fit: cover; }
+
+    .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.8); align-items: center; justify-content: center; z-index: 50; }
+    .modal.open { display: flex; }
+
+    /* Info button */
+    .info-btn { width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid rgba(240,192,64,.55); color: #f0c040; font-size: 13px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; background: rgba(240,192,64,.08); transition: all 0.2s; flex-shrink: 0; }
+    .info-btn:hover { background: rgba(240,192,64,.22); border-color: #f0c040; }
+
+    /* Info modal content */
+    .info-section { margin-bottom: 14px; }
+    .info-section h3 { color: #f0c040; font-weight: 700; font-size: 0.8rem; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; }
+    .info-row { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 4px; font-size: 0.82rem; color: rgba(255,255,255,.85); }
+    .info-row span:first-child { color: #f0c040; flex-shrink: 0; }
+
+    @keyframes pop { 0%{transform:scale(.7);opacity:0} 60%{transform:scale(1.08)} 100%{transform:scale(1);opacity:1} }
+    .pop { animation: pop .35s ease; }
+  </style>
+</head>
+<body>
+  <div class="max-w-sm mx-auto px-3 py-6">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-5">
+      <a href="index.html" class="text-green-300 hover:text-white text-sm transition-colors">← Back</a>
+      <h1 class="text-xl font-black gold">⚔️ War</h1>
+      <div class="flex items-center gap-3">
+        <button onclick="openInfo()" class="info-btn" title="How to play">i</button>
+        <button onclick="newGame()" class="text-green-300 hover:text-white text-sm transition-colors">New Game</button>
+      </div>
+    </div>
+
+    <!-- Scoreboard -->
+    <div class="glass rounded-xl px-4 py-3 flex justify-between items-center mb-4">
+      <div class="text-center">
+        <div id="playerCount" class="text-2xl font-black gold">26</div>
+        <div id="playerLabel" class="text-xs text-green-300 truncate max-w-20">You</div>
+      </div>
+      <div class="text-center">
+        <div id="roundLabel" class="text-lg font-bold text-white">Round 0</div>
+        <div class="text-xs text-green-300">played</div>
+      </div>
+      <div class="text-center">
+        <div id="cpuCount" class="text-2xl font-black text-red-400">26</div>
+        <div class="text-xs text-green-300">CPU</div>
+      </div>
+    </div>
+
+    <!-- Arena -->
+    <div class="glass rounded-2xl p-5 mb-4">
+
+      <!-- WAR zone (hidden by default) -->
+      <div id="warZone" class="hidden mb-3">
+        <p class="text-red-400 font-black text-xl text-center mb-2 pop">⚔️ WAR!</p>
+        <div class="flex justify-around">
+          <div class="text-center">
+            <p class="text-xs text-green-300 mb-1">Your war cards</p>
+            <div id="playerWarCards" class="flex gap-1 justify-center"></div>
+          </div>
+          <div class="text-center">
+            <p class="text-xs text-green-300 mb-1">CPU war cards</p>
+            <div id="cpuWarCards" class="flex gap-1 justify-center"></div>
+          </div>
+        </div>
+        <p class="text-xs text-yellow-400 text-center mt-2">Then one more card each...</p>
+      </div>
+
+      <!-- Main cards vs -->
+      <div class="flex justify-around items-center mb-4">
+        <div class="text-center">
+          <div id="playerCard" class="card-big mx-auto mb-2">
+            <img src="cards/back.jpg" alt="your card">
+          </div>
+          <p id="playerCardName" class="text-xs text-green-300">Your card</p>
+        </div>
+        <div class="gold font-black text-2xl">VS</div>
+        <div class="text-center">
+          <div id="cpuCard" class="card-big mx-auto mb-2">
+            <img src="cards/back.jpg" alt="cpu card">
+          </div>
+          <p id="cpuCardName" class="text-xs text-green-300">CPU card</p>
+        </div>
+      </div>
+
+      <!-- Result -->
+      <div id="result" class="text-center font-bold text-base min-h-6 mb-3 text-white"></div>
+
+      <!-- Draw button -->
+      <button id="drawBtn" onclick="draw()" class="btn-gold w-full py-3 rounded-xl text-lg">Draw Cards</button>
+    </div>
+
+    <!-- Pile indicators -->
+    <div class="flex justify-around items-center">
+      <div class="text-center">
+        <div class="war-card mx-auto mb-1" style="width:56px;height:78px">
+          <img src="cards/back.jpg" alt="pile">
+        </div>
+        <p class="text-xs text-green-300">Your Pile</p>
+      </div>
+      <p id="pileNote" class="text-xs text-green-400 font-semibold"></p>
+      <div class="text-center">
+        <div class="war-card mx-auto mb-1" style="width:56px;height:78px">
+          <img src="cards/back.jpg" alt="pile">
+        </div>
+        <p class="text-xs text-green-300">CPU Pile</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Info Modal -->
+  <div id="infoModal" class="modal" onclick="closeInfo(event)">
+    <div class="glass rounded-2xl p-6 max-w-sm w-full mx-4" style="border:2px solid rgba(240,192,64,.35);max-height:90vh;overflow-y:auto" onclick="event.stopPropagation()">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-black gold">⚔️ How to Play</h2>
+        <button onclick="document.getElementById('infoModal').classList.remove('open')"
+                class="text-green-300 hover:text-white text-xl font-bold leading-none">✕</button>
+      </div>
+
+      <div class="info-section">
+        <h3>Goal</h3>
+        <div class="info-row"><span>🎯</span><span>Capture all 52 cards to win. The player who runs out of cards loses.</span></div>
+      </div>
+
+      <div class="info-section">
+        <h3>How to Play</h3>
+        <div class="info-row"><span>1.</span><span>You and the CPU each start with 26 cards (half the deck).</span></div>
+        <div class="info-row"><span>2.</span><span>Press <strong style="color:#f0c040">Draw Cards</strong> — both players flip their top card.</span></div>
+        <div class="info-row"><span>3.</span><span>The higher card wins and takes both cards, adding them to the bottom of their pile.</span></div>
+        <div class="info-row"><span>4.</span><span>Keep drawing until one player has all 52 cards.</span></div>
+      </div>
+
+      <div class="info-section">
+        <h3>Card Values (Low → High)</h3>
+        <div class="info-row"><span>🃏</span><span>2 · 3 · 4 · 5 · 6 · 7 · 8 · 9 · 10 · Jack · Queen · King · <strong style="color:#f0c040">Ace</strong></span></div>
+        <div class="info-row"><span>👑</span><span>Ace is the highest card in the game.</span></div>
+      </div>
+
+      <div class="info-section">
+        <h3>WAR! (Tie)</h3>
+        <div class="info-row"><span>⚔️</span><span>When both cards have equal value, it's <strong style="color:#f87171">WAR!</strong></span></div>
+        <div class="info-row"><span>1.</span><span>Each player places 3 cards face down into the pot.</span></div>
+        <div class="info-row"><span>2.</span><span>Then each player flips 1 final battle card face up.</span></div>
+        <div class="info-row"><span>3.</span><span>The higher battle card wins the entire pot.</span></div>
+        <div class="info-row"><span>🤝</span><span>If the battle cards also tie, the pot is split evenly.</span></div>
+      </div>
+
+      <div class="info-section" style="margin-bottom:0">
+        <h3>Leaderboard</h3>
+        <div class="info-row"><span>🏆</span><span>Win a full game to add a win to your leaderboard count.</span></div>
+        <div class="info-row"><span>📈</span><span>Your wins stack up — the more you win, the higher you rank!</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Game Over Modal -->
+  <div id="endModal" class="modal">
+    <div class="glass rounded-2xl p-8 max-w-sm w-full mx-4 text-center" style="border:2px solid rgba(240,192,64,.4)">
+      <div id="endEmoji" class="text-6xl mb-3">🏆</div>
+      <h2 id="endTitle" class="text-3xl font-black gold mb-1">You Win!</h2>
+      <p id="endSub" class="text-green-300 text-sm mb-4">You captured all the cards!</p>
+      <div class="glass rounded-xl p-3 mb-4">
+        <div id="endRounds" class="text-2xl font-black gold">0</div>
+        <div class="text-xs text-green-300">Total Rounds</div>
+      </div>
+      <p id="endStatus" class="text-yellow-400 text-sm mb-5"></p>
+      <div class="flex gap-3">
+        <button onclick="newGame()" class="btn-gold flex-1 py-3 rounded-xl">Play Again</button>
+        <a href="index.html" class="flex-1 py-3 rounded-xl font-bold text-center text-white"
+           style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2)">Home</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SUITS = ['clovers', 'diamonds', 'hearts', 'spades'];
+    // Ordered lowest to highest power (index = power 0–12, ace is highest)
+    const VALUES = ['2','3','4','5','6','7','8','9','10','jack','queen','king','ace'];
+
+    const playerName = localStorage.getItem('pcp_name') || 'Player';
+    document.getElementById('playerLabel').textContent = playerName;
+
+    let pDeck = [], cDeck = [], roundNum = 0, busy = false, active = false;
+
+    function shuffle(arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    function buildDeck() {
+      const deck = [];
+      for (const suit of SUITS)
+        VALUES.forEach((val, pow) => deck.push({ suit, val, pow, img: `cards/${suit}/${val}.jpg` }));
+      return shuffle(deck);
+    }
+
+    function updateCounts() {
+      document.getElementById('playerCount').textContent = pDeck.length;
+      document.getElementById('cpuCount').textContent = cDeck.length;
+      document.getElementById('roundLabel').textContent = `Round ${roundNum}`;
+    }
+
+    function setCard(elId, card) {
+      document.getElementById(elId).innerHTML = `<img src="${card.img}" alt="${card.val} of ${card.suit}">`;
+    }
+
+    function setCardName(elId, card) {
+      const names = { ace: 'Ace', jack: 'Jack', queen: 'Queen', king: 'King' };
+      document.getElementById(elId).textContent = (names[card.val] || card.val) + ' of ' + card.suit;
+    }
+
+    function draw() {
+      if (!active || busy) return;
+      busy = true;
+      document.getElementById('drawBtn').disabled = true;
+
+      roundNum++;
+      const pC = pDeck.shift();
+      const cC = cDeck.shift();
+      const pot = [pC, cC];
+
+      // Reset card states
+      document.getElementById('playerCard').className = 'card-big mx-auto mb-2';
+      document.getElementById('cpuCard').className = 'card-big mx-auto mb-2';
+      document.getElementById('warZone').classList.add('hidden');
+
+      setCard('playerCard', pC);
+      setCard('cpuCard', cC);
+      setCardName('playerCardName', pC);
+      setCardName('cpuCardName', cC);
+      document.getElementById('pileNote').textContent = '';
+
+      updateCounts();
+
+      if (pC.pow > cC.pow) {
+        pDeck.push(...pot);
+        document.getElementById('playerCard').classList.add('win');
+        document.getElementById('cpuCard').classList.add('lose');
+        document.getElementById('result').textContent = '✅ You win the round! +2 cards';
+        document.getElementById('result').style.color = '#4ade80';
+        updateCounts();
+        finish();
+      } else if (cC.pow > pC.pow) {
+        cDeck.push(...pot);
+        document.getElementById('cpuCard').classList.add('win');
+        document.getElementById('playerCard').classList.add('lose');
+        document.getElementById('result').textContent = '❌ CPU wins the round!';
+        document.getElementById('result').style.color = '#f87171';
+        updateCounts();
+        finish();
+      } else {
+        doWar(pot);
+      }
+    }
+
+    function doWar(pot) {
+      document.getElementById('warZone').classList.remove('hidden');
+      document.getElementById('result').textContent = 'Flipping war cards...';
+      document.getElementById('result').style.color = '#fbbf24';
+
+      const pWar = [], cWar = [];
+      for (let i = 0; i < 3; i++) {
+        if (pDeck.length) pWar.push(pDeck.shift());
+        if (cDeck.length) cWar.push(cDeck.shift());
+      }
+      pot.push(...pWar, ...cWar);
+
+      document.getElementById('playerWarCards').innerHTML =
+        pWar.map(() => `<div class="war-card"><img src="cards/back.jpg" alt="war"></div>`).join('');
+      document.getElementById('cpuWarCards').innerHTML =
+        cWar.map(() => `<div class="war-card"><img src="cards/back.jpg" alt="war"></div>`).join('');
+
+      updateCounts();
+
+      // If either ran out during war
+      if (!pDeck.length || !cDeck.length) {
+        if (!pDeck.length && !cDeck.length) { pDeck.push(...pot); }
+        else if (!pDeck.length) { cDeck.push(...pot); }
+        else { pDeck.push(...pot); }
+        updateCounts();
+        finish();
+        return;
+      }
+
+      // Battle cards
+      const pB = pDeck.shift();
+      const cB = cDeck.shift();
+      pot.push(pB, cB);
+
+      setCard('playerCard', pB);
+      setCard('cpuCard', cB);
+      setCardName('playerCardName', pB);
+      setCardName('cpuCardName', cB);
+      updateCounts();
+
+      if (pB.pow > cB.pow) {
+        pDeck.push(...pot);
+        document.getElementById('playerCard').classList.add('win');
+        document.getElementById('cpuCard').classList.add('lose');
+        document.getElementById('result').textContent = `✅ You win the war! +${pot.length} cards`;
+        document.getElementById('result').style.color = '#4ade80';
+      } else if (cB.pow > pB.pow) {
+        cDeck.push(...pot);
+        document.getElementById('cpuCard').classList.add('win');
+        document.getElementById('playerCard').classList.add('lose');
+        document.getElementById('result').textContent = `❌ CPU wins the war! +${pot.length} cards`;
+        document.getElementById('result').style.color = '#f87171';
+      } else {
+        // Double war — split the pot
+        const half = Math.floor(pot.length / 2);
+        pDeck.push(...pot.slice(0, half));
+        cDeck.push(...pot.slice(half));
+        document.getElementById('result').textContent = '🤝 Double war — cards split!';
+        document.getElementById('result').style.color = '#fbbf24';
+      }
+
+      updateCounts();
+      finish();
+    }
+
+    function finish() {
+      if (!pDeck.length) { endGame(false); return; }
+      if (!cDeck.length) { endGame(true); return; }
+      document.getElementById('drawBtn').textContent = 'Next Round';
+      document.getElementById('drawBtn').disabled = false;
+      busy = false;
+    }
+
+    function endGame(playerWon) {
+      active = false;
+      document.getElementById('endRounds').textContent = roundNum;
+      document.getElementById('endModal').classList.add('open');
+
+      if (playerWon) {
+        document.getElementById('endEmoji').textContent = '🏆';
+        document.getElementById('endTitle').textContent = 'You Win!';
+        document.getElementById('endTitle').style.color = '#f0c040';
+        document.getElementById('endSub').textContent = 'You captured all 52 cards!';
+
+        const scores = JSON.parse(localStorage.getItem('pcp_lb_war') || '[]');
+        const existing = scores.find(s => s.name === playerName);
+        if (existing) { existing.score++; existing.date = new Date().toLocaleDateString(); }
+        else scores.push({ name: playerName, score: 1, date: new Date().toLocaleDateString() });
+        scores.sort((a, b) => b.score - a.score);
+        scores.splice(10);
+        localStorage.setItem('pcp_lb_war', JSON.stringify(scores));
+
+        const rank = scores.findIndex(s => s.name === playerName) + 1;
+        document.getElementById('endStatus').textContent = rank <= 3 ? `🏆 #${rank} on the leaderboard!` : 'Win added to leaderboard!';
+      } else {
+        document.getElementById('endEmoji').textContent = '💀';
+        document.getElementById('endTitle').textContent = 'CPU Wins';
+        document.getElementById('endTitle').style.color = '#f87171';
+        document.getElementById('endSub').textContent = 'Better luck next time!';
+        document.getElementById('endStatus').textContent = '';
+      }
+    }
+
+    function newGame() {
+      const full = buildDeck();
+      pDeck = full.slice(0, 26);
+      cDeck = full.slice(26);
+      roundNum = 0; busy = false; active = true;
+
+      document.getElementById('endModal').classList.remove('open');
+      document.getElementById('warZone').classList.add('hidden');
+      document.getElementById('result').textContent = '';
+      document.getElementById('pileNote').textContent = '';
+      document.getElementById('drawBtn').textContent = 'Draw Cards';
+      document.getElementById('drawBtn').disabled = false;
+      document.getElementById('playerCard').className = 'card-big mx-auto mb-2';
+      document.getElementById('cpuCard').className = 'card-big mx-auto mb-2';
+      document.getElementById('playerCard').innerHTML = '<img src="cards/back.jpg" alt="back">';
+      document.getElementById('cpuCard').innerHTML = '<img src="cards/back.jpg" alt="back">';
+      document.getElementById('playerCardName').textContent = 'Your card';
+      document.getElementById('cpuCardName').textContent = 'CPU card';
+      updateCounts();
+    }
+
+    function openInfo() { document.getElementById('infoModal').classList.add('open'); }
+    function closeInfo(e) { if (e.target === document.getElementById('infoModal')) document.getElementById('infoModal').classList.remove('open'); }
+
+    newGame();
+  </script>
+</body>
+</html>

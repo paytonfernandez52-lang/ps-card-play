@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>P's Card Play</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { background: radial-gradient(ellipse at 50% 30%, #2d7a50 0%, #1b4d35 65%, #0f2d1f 100%); min-height: 100vh; font-family: 'Segoe UI', system-ui, sans-serif; }
+    .gold { color: #f0c040; }
+    .glass { background: rgba(0,0,0,0.35); border: 1px solid rgba(255,215,0,0.2); }
+    .btn-gold { background: linear-gradient(135deg, #b8860b, #f0c040, #b8860b); color: #1a1000; font-weight: 700; transition: all 0.2s; box-shadow: 0 4px 12px rgba(240,192,64,0.3); }
+    .btn-gold:hover { filter: brightness(1.1); transform: translateY(-1px); }
+    .btn-gold:active { transform: translateY(0); }
+    .game-card { background: rgba(0,0,0,0.3); border: 2px solid rgba(240,192,64,0.2); transition: all 0.25s; cursor: pointer; }
+    .game-card:hover { border-color: rgba(240,192,64,0.7); transform: translateY(-5px); box-shadow: 0 10px 28px rgba(0,0,0,0.5); }
+    .name-input { background: rgba(255,255,255,0.09); border: 2px solid rgba(240,192,64,0.3); color: white; transition: border-color 0.2s; }
+    .name-input:focus { outline: none; border-color: #f0c040; background: rgba(255,255,255,0.13); }
+    .name-input::placeholder { color: rgba(255,255,255,0.35); }
+    .tab-on { background: #7a5c00; color: #f0c040; }
+    .tab-off { background: rgba(0,0,0,0.3); color: rgba(200,200,200,0.7); }
+    .tab-off:hover { background: rgba(0,0,0,0.5); color: white; }
+    .lb-row:nth-child(odd) { background: rgba(255,255,255,0.04); }
+  </style>
+</head>
+<body>
+  <div class="max-w-lg mx-auto px-4 py-10">
+
+    <header class="text-center mb-8">
+      <div class="text-3xl mb-2 tracking-widest" style="color:#f0c040;opacity:.8">♠ ♥ ♣ ♦</div>
+      <h1 class="text-5xl font-black gold" style="letter-spacing:-1px;text-shadow:0 0 24px rgba(240,192,64,.35)">P's Card Play</h1>
+      <p class="text-green-300 mt-2 text-sm opacity-70">Classic card games, anytime</p>
+    </header>
+
+    <!-- Name Entry -->
+    <div class="glass rounded-2xl p-5 mb-5">
+      <label class="block text-yellow-400 font-semibold mb-2 text-sm">Your Name</label>
+      <div class="flex gap-2">
+        <input id="nameInput" type="text" placeholder="Enter your name..." maxlength="20"
+               class="name-input flex-1 rounded-xl px-4 py-2.5 text-base">
+        <button onclick="saveName()" class="btn-gold px-5 py-2.5 rounded-xl text-base">Save</button>
+      </div>
+      <p id="welcome" class="text-green-300 text-sm mt-2 hidden">
+        Welcome back, <span id="welcomeName" class="text-yellow-400 font-bold"></span>! Pick a game below.
+      </p>
+    </div>
+
+    <!-- Games -->
+    <div class="grid grid-cols-2 gap-4 mb-6">
+      <div class="game-card rounded-2xl p-5 text-center" onclick="go('memory')">
+        <div class="text-4xl mb-2">🃏</div>
+        <h2 class="text-lg font-bold text-white mb-1">Memory Match</h2>
+        <p class="text-green-300 text-xs mb-3">Find all pairs in the fewest moves</p>
+        <span class="btn-gold px-4 py-1.5 rounded-lg text-sm inline-block">Play</span>
+      </div>
+      <div class="game-card rounded-2xl p-5 text-center" onclick="go('war')">
+        <div class="text-4xl mb-2">⚔️</div>
+        <h2 class="text-lg font-bold text-white mb-1">War</h2>
+        <p class="text-green-300 text-xs mb-3">Highest card takes the pile</p>
+        <span class="btn-gold px-4 py-1.5 rounded-lg text-sm inline-block">Play</span>
+      </div>
+      <div class="game-card rounded-2xl p-5 text-center" onclick="go('holdem')">
+        <div class="text-4xl mb-2">♠</div>
+        <h2 class="text-lg font-bold text-white mb-1">Texas Hold'em</h2>
+        <p class="text-green-300 text-xs mb-3">Bet, bluff, and outwit the CPU at poker</p>
+        <span class="btn-gold px-4 py-1.5 rounded-lg text-sm inline-block">Play</span>
+      </div>
+      <div class="game-card rounded-2xl p-5 text-center" onclick="go('solitaire')">
+        <div class="text-4xl mb-2">🂡</div>
+        <h2 class="text-lg font-bold text-white mb-1">Solitaire</h2>
+        <p class="text-green-300 text-xs mb-3">Classic Klondike — build all four foundations to win</p>
+        <span class="btn-gold px-4 py-1.5 rounded-lg text-sm inline-block">Play</span>
+      </div>
+      <div class="game-card rounded-2xl p-5 text-center" onclick="go('blackjack')">
+        <div class="text-4xl mb-2">🃏</div>
+        <h2 class="text-lg font-bold text-white mb-1">Blackjack</h2>
+        <p class="text-green-300 text-xs mb-3">Beat the dealer to 21 without going bust</p>
+        <span class="btn-gold px-4 py-1.5 rounded-lg text-sm inline-block">Play</span>
+      </div>
+      <div class="game-card rounded-2xl p-5 text-center" onclick="go('gofish')">
+        <div class="text-4xl mb-2">🐟</div>
+        <h2 class="text-lg font-bold text-white mb-1">Go Fish</h2>
+        <p class="text-green-300 text-xs mb-3">Ask the CPU for ranks and collect books of 4</p>
+        <span class="btn-gold px-4 py-1.5 rounded-lg text-sm inline-block">Play</span>
+      </div>
+      <div class="game-card rounded-2xl p-5 text-center" onclick="go('baccarat')">
+        <div class="text-4xl mb-2">🎴</div>
+        <h2 class="text-lg font-bold text-white mb-1">Baccarat</h2>
+        <p class="text-green-300 text-xs mb-3">Bet on Player, Banker, or Tie in this classic table game</p>
+        <span class="btn-gold px-4 py-1.5 rounded-lg text-sm inline-block">Play</span>
+      </div>
+      <div class="game-card rounded-2xl p-5 text-center" onclick="go('crazyeights')">
+        <div class="text-4xl mb-2">8️⃣</div>
+        <h2 class="text-lg font-bold text-white mb-1">Crazy Eights</h2>
+        <p class="text-green-300 text-xs mb-3">Match suit or rank — eights are wild</p>
+        <span class="btn-gold px-4 py-1.5 rounded-lg text-sm inline-block">Play</span>
+      </div>
+      <div class="game-card rounded-2xl p-5 text-center" onclick="go('ginrummy')">
+        <div class="text-4xl mb-2">🂱</div>
+        <h2 class="text-lg font-bold text-white mb-1">Gin Rummy</h2>
+        <p class="text-green-300 text-xs mb-3">Form melds, knock or go Gin, first to 100 wins</p>
+        <span class="btn-gold px-4 py-1.5 rounded-lg text-sm inline-block">Play</span>
+      </div>
+      <div class="game-card rounded-2xl p-5 text-center" onclick="go('fivecarddraw')">
+        <div class="text-4xl mb-2">🃏</div>
+        <h2 class="text-lg font-bold text-white mb-1">5-Card Draw</h2>
+        <p class="text-green-300 text-xs mb-3">Hold your best cards, draw replacements, bet to win</p>
+        <span class="btn-gold px-4 py-1.5 rounded-lg text-sm inline-block">Play</span>
+      </div>
+    </div>
+
+    <!-- Leaderboard -->
+    <div class="glass rounded-2xl p-5">
+      <h2 class="text-xl font-bold gold mb-3">🏆 Leaderboard</h2>
+      <div class="flex gap-2 mb-1.5 flex-wrap">
+        <button id="tabMem" onclick="showLb('memory')" class="px-3 py-1.5 rounded-lg text-sm font-semibold transition-all tab-on">Memory</button>
+        <button id="tabWar" onclick="showLb('war')" class="px-3 py-1.5 rounded-lg text-sm font-semibold transition-all tab-off">War</button>
+        <button id="tabHoldem" onclick="showLb('holdem')" class="px-3 py-1.5 rounded-lg text-sm font-semibold transition-all tab-off">Hold'em</button>
+        <button id="tabSol" onclick="showLb('solitaire')" class="px-3 py-1.5 rounded-lg text-sm font-semibold transition-all tab-off">Solitaire</button>
+        <button id="tabBJ" onclick="showLb('blackjack')" class="px-3 py-1.5 rounded-lg text-sm font-semibold transition-all tab-off">Blackjack</button>
+      </div>
+      <div class="flex gap-1.5 mb-3 flex-nowrap">
+        <button id="tabGF" onclick="showLb('gofish')" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all tab-off">Go Fish</button>
+        <button id="tabBac" onclick="showLb('baccarat')" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all tab-off">Baccarat</button>
+        <button id="tabCE" onclick="showLb('crazyeights')" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all tab-off">Crazy 8s</button>
+        <button id="tabGR" onclick="showLb('ginrummy')" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all tab-off">Gin Rummy</button>
+        <button id="tab5CD" onclick="showLb('fivecarddraw')" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all tab-off">5-Card Draw</button>
+      </div>
+      <div id="lbContent"></div>
+    </div>
+
+    <p class="text-center text-xs mt-6" style="color:rgba(255,255,255,.18)">© 2026 P's Card Play &nbsp;·&nbsp; <a href="about.html" style="color:rgba(255,255,255,.35);text-decoration:underline">About</a> &nbsp;·&nbsp; <a href="privacy.html" style="color:rgba(255,255,255,.35);text-decoration:underline">Privacy Policy</a></p>
+  </div>
+
+  <script>
+    function saveName() {
+      const v = document.getElementById('nameInput').value.trim();
+      if (!v) {
+        const el = document.getElementById('nameInput');
+        el.style.borderColor = '#ff6b6b';
+        setTimeout(() => el.style.borderColor = '', 1500);
+        return;
+      }
+      localStorage.setItem('pcp_name', v);
+      document.getElementById('welcomeName').textContent = v;
+      document.getElementById('welcome').classList.remove('hidden');
+    }
+
+    function go(game) {
+      const name = document.getElementById('nameInput').value.trim() || localStorage.getItem('pcp_name');
+      if (!name) { saveName(); return; }
+      localStorage.setItem('pcp_name', name);
+      window.location.href = game + '.html';
+    }
+
+    function showLb(game) {
+      document.getElementById('tabMem').className = 'px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ' + (game === 'memory' ? 'tab-on' : 'tab-off');
+      document.getElementById('tabWar').className = 'px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ' + (game === 'war' ? 'tab-on' : 'tab-off');
+      document.getElementById('tabHoldem').className = 'px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ' + (game === 'holdem' ? 'tab-on' : 'tab-off');
+      document.getElementById('tabSol').className = 'px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ' + (game === 'solitaire' ? 'tab-on' : 'tab-off');
+      document.getElementById('tabBJ').className = 'px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ' + (game === 'blackjack' ? 'tab-on' : 'tab-off');
+      document.getElementById('tabGF').className = 'px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ' + (game === 'gofish' ? 'tab-on' : 'tab-off');
+      document.getElementById('tabBac').className = 'px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ' + (game === 'baccarat' ? 'tab-on' : 'tab-off');
+      document.getElementById('tabCE').className = 'px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ' + (game === 'crazyeights' ? 'tab-on' : 'tab-off');
+      document.getElementById('tabGR').className = 'px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ' + (game === 'ginrummy' ? 'tab-on' : 'tab-off');
+      document.getElementById('tab5CD').className = 'px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ' + (game === 'fivecarddraw' ? 'tab-on' : 'tab-off');
+      const scores = JSON.parse(localStorage.getItem('pcp_lb_' + game) || '[]');
+      const el = document.getElementById('lbContent');
+      if (!scores.length) {
+        el.innerHTML = '<p class="text-green-400 text-center py-4 text-sm">No scores yet — be the first!</p>';
+        return;
+      }
+      const medals = ['🥇', '🥈', '🥉'];
+      const fmt = s => (game === 'memory' || game === 'solitaire') ? s.score + ' moves' : (game === 'war' || game === 'gofish' || game === 'crazyeights' || game === 'ginrummy') ? s.score + ' wins' : '$' + s.score;
+      el.innerHTML = scores.slice(0, 10).map((s, i) => `
+        <div class="lb-row flex items-center px-2 py-2 rounded-lg text-sm">
+          <span class="w-7 text-center font-bold gold">${medals[i] || i + 1}</span>
+          <span class="flex-1 text-white font-semibold ml-1">${s.name}</span>
+          <span class="font-bold gold">${fmt(s)}</span>
+          <span class="text-xs ml-2" style="color:rgba(255,255,255,.35)">${s.date}</span>
+        </div>`).join('');
+    }
+
+    // Init
+    const saved = localStorage.getItem('pcp_name');
+    if (saved) {
+      document.getElementById('nameInput').value = saved;
+      document.getElementById('welcomeName').textContent = saved;
+      document.getElementById('welcome').classList.remove('hidden');
+    }
+    showLb('memory');
+    document.getElementById('nameInput').addEventListener('keydown', e => { if (e.key === 'Enter') saveName(); });
+  </script>
+</body>
+</html>

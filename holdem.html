@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Texas Hold'em — P's Card Play</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { background: radial-gradient(ellipse at 50% 30%, #2d7a50 0%, #1b4d35 65%, #0f2d1f 100%); min-height: 100vh; font-family: 'Segoe UI', system-ui, sans-serif; }
+    .gold { color: #f0c040; }
+    .glass { background: rgba(0,0,0,0.35); border: 1px solid rgba(255,215,0,0.2); }
+    .btn-gold { background: linear-gradient(135deg, #b8860b, #f0c040, #b8860b); color: #1a1000; font-weight: 700; transition: all 0.2s; }
+    .btn-gold:hover { filter: brightness(1.1); transform: translateY(-1px); }
+    .btn-gold:active { transform: translateY(0); }
+    .btn-gold:disabled, .btn-red:disabled, .btn-green:disabled { opacity: .45; cursor: not-allowed; transform: none !important; filter: none !important; }
+    .btn-red { background: linear-gradient(135deg, #7f0000, #ef4444, #7f0000); color: white; font-weight: 700; transition: all 0.2s; }
+    .btn-red:hover { filter: brightness(1.15); }
+    .btn-green { background: linear-gradient(135deg, #1a5c2e, #22c55e, #1a5c2e); color: white; font-weight: 700; transition: all 0.2s; }
+    .btn-green:hover { filter: brightness(1.15); }
+    .card { border-radius: 8px; overflow: hidden; border: 2px solid rgba(255,255,255,.2); box-shadow: 0 4px 12px rgba(0,0,0,.5); background: #1c3878; flex-shrink: 0; }
+    .card img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .card-sm  { width: 52px; height: 73px; }
+    .card-md  { width: 68px; height: 95px; }
+    .card-lg  { width: 88px; height: 123px; }
+    .card-slot { border-radius: 8px; border: 1.5px dashed rgba(255,255,255,.18); background: rgba(0,0,0,.2); flex-shrink: 0; }
+    .info-btn { width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid rgba(240,192,64,.55); color: #f0c040; font-size: 13px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; background: rgba(240,192,64,.08); transition: all 0.2s; }
+    .info-btn:hover { background: rgba(240,192,64,.22); border-color: #f0c040; }
+    .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.82); align-items: center; justify-content: center; z-index: 50; padding: 12px; }
+    .modal.open { display: flex; }
+    .chip { display: inline-flex; align-items: center; gap: 3px; background: rgba(0,0,0,.45); border: 1px solid rgba(240,192,64,.3); border-radius: 20px; padding: 2px 10px; font-size: 0.82rem; }
+    .info-section { margin-bottom: 14px; }
+    .info-section h3 { color: #f0c040; font-weight: 700; font-size: 0.78rem; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 5px; }
+    .info-row { display: flex; gap: 7px; align-items: flex-start; margin-bottom: 4px; font-size: 0.8rem; color: rgba(255,255,255,.85); line-height: 1.4; }
+    .info-row span:first-child { color: #f0c040; flex-shrink: 0; min-width: 16px; }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+    .fade-up { animation: fadeUp 0.3s ease; }
+    @media (max-width: 360px) { .card-lg { width: 76px; height: 106px; } .card-md { width: 58px; height: 81px; } .card-sm { width: 44px; height: 62px; } }
+  </style>
+</head>
+<body>
+  <div class="max-w-sm mx-auto px-3 py-5">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-3">
+      <a href="index.html" class="text-green-300 hover:text-white text-sm">← Back</a>
+      <h1 class="text-lg font-black gold">♠ Texas Hold'em</h1>
+      <div class="flex items-center gap-3">
+        <button onclick="openInfo()" class="info-btn">i</button>
+        <button onclick="startNewHand()" class="text-green-300 hover:text-white text-sm">New Hand</button>
+      </div>
+    </div>
+
+    <!-- CPU zone -->
+    <div class="glass rounded-xl p-3 mb-2">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-xs text-green-300">CPU</span>
+        <div class="chip"><span class="gold font-bold">$</span><span id="cpuChips" class="text-white font-bold">500</span></div>
+        <span id="cpuStatus" class="text-xs text-yellow-400 font-semibold"></span>
+      </div>
+      <div id="cpuCards" class="flex gap-2 justify-center">
+        <div class="card-slot card-md"></div><div class="card-slot card-md"></div>
+      </div>
+      <div id="cpuHandLabel" class="text-xs text-yellow-400 text-center mt-1 h-4"></div>
+    </div>
+
+    <!-- Community + pot -->
+    <div class="glass rounded-xl p-3 mb-2">
+      <div class="text-center mb-2 flex items-center justify-center gap-3">
+        <span id="stageLabel" class="text-xs text-green-400 font-semibold w-16 text-right"></span>
+        <span class="text-xs text-green-300">POT: <span id="potDisplay" class="font-black gold text-sm">$0</span></span>
+        <span class="w-16"></span>
+      </div>
+      <div id="communityCards" class="flex gap-1.5 justify-center">
+        <div class="card-slot card-sm"></div><div class="card-slot card-sm"></div>
+        <div class="card-slot card-sm"></div><div class="card-slot card-sm"></div>
+        <div class="card-slot card-sm"></div>
+      </div>
+    </div>
+
+    <!-- Player zone -->
+    <div class="glass rounded-xl p-3 mb-2">
+      <div class="flex items-center justify-between mb-2">
+        <span id="playerLabel" class="text-xs text-green-300">You</span>
+        <div class="chip"><span class="gold font-bold">$</span><span id="playerChips" class="text-white font-bold">500</span></div>
+        <span id="playerStatus" class="text-xs text-yellow-400 font-semibold"></span>
+      </div>
+      <div id="playerCards" class="flex gap-2 justify-center">
+        <div class="card-slot card-lg"></div><div class="card-slot card-lg"></div>
+      </div>
+      <div id="playerHandLabel" class="text-xs text-yellow-400 text-center mt-1 h-4"></div>
+    </div>
+
+    <!-- Game log -->
+    <div id="gameLog" class="text-center text-sm font-semibold text-white min-h-5 mb-2 px-1"></div>
+
+    <!-- Action panel -->
+    <div class="glass rounded-xl p-3">
+      <!-- Deal screen -->
+      <div id="dealScreen">
+        <button onclick="startNewHand()" class="btn-gold w-full py-3 rounded-xl text-lg">Deal Hand</button>
+        <p id="dealNote" class="text-xs text-green-300 text-center mt-1"></p>
+      </div>
+      <!-- Bet screen -->
+      <div id="betScreen" class="hidden">
+        <div class="flex gap-2 mb-2">
+          <button id="btnFold"  onclick="act('fold')"  class="btn-red  flex-1 py-2.5 rounded-xl text-sm">Fold</button>
+          <button id="btnCheck" onclick="act('check')" class="btn-green flex-1 py-2.5 rounded-xl text-sm hidden">Check</button>
+          <button id="btnCall"  onclick="act('call')"  class="btn-green flex-1 py-2.5 rounded-xl text-sm hidden">Call</button>
+          <button id="btnRaise" onclick="toggleRaise()" class="btn-gold flex-1 py-2.5 rounded-xl text-sm">Bet</button>
+        </div>
+        <!-- Raise panel -->
+        <div id="raisePanel" class="hidden mb-2">
+          <div class="flex gap-2 mb-1">
+            <button onclick="quickRaise('half')" class="flex-1 text-xs py-1.5 rounded-lg gold" style="background:rgba(0,0,0,.35);border:1px solid rgba(240,192,64,.3)">½ Pot</button>
+            <button onclick="quickRaise('pot')"  class="flex-1 text-xs py-1.5 rounded-lg gold" style="background:rgba(0,0,0,.35);border:1px solid rgba(240,192,64,.3)">Pot</button>
+            <button onclick="quickRaise('allin')" class="flex-1 text-xs py-1.5 rounded-lg gold" style="background:rgba(0,0,0,.35);border:1px solid rgba(240,192,64,.3)">All-in</button>
+          </div>
+          <div class="flex gap-2 items-center">
+            <span class="text-xs text-green-300 whitespace-nowrap">Raise to $</span>
+            <input id="raiseAmt" type="number" class="flex-1 rounded-lg px-2 py-1.5 text-sm text-white"
+                   style="background:rgba(255,255,255,.1);border:1px solid rgba(255,215,0,.4)">
+            <button onclick="act('raise')" class="btn-gold px-3 py-1.5 rounded-lg text-sm">✓</button>
+          </div>
+        </div>
+        <div class="flex justify-between text-xs mt-1" style="color:rgba(255,255,255,.5)">
+          <span>Your bet: <span id="pBetDisplay" class="text-yellow-400 font-semibold">$0</span></span>
+          <span>CPU bet: <span id="cBetDisplay" class="text-yellow-400 font-semibold">$0</span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Info modal -->
+  <div id="infoModal" class="modal" onclick="if(event.target===this)this.classList.remove('open')">
+    <div class="glass rounded-2xl p-5 w-full max-w-sm" style="border:2px solid rgba(240,192,64,.35);max-height:92vh;overflow-y:auto">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-black gold">♠ How to Play</h2>
+        <button onclick="document.getElementById('infoModal').classList.remove('open')" class="text-green-300 hover:text-white text-xl font-bold">✕</button>
+      </div>
+      <div class="info-section">
+        <h3>Goal</h3>
+        <div class="info-row"><span>🎯</span><span>Win chips by making the best 5-card poker hand, or by getting CPU to fold.</span></div>
+      </div>
+      <div class="info-section">
+        <h3>The Deal</h3>
+        <div class="info-row"><span>1.</span><span>Each player gets 2 private hole cards.</span></div>
+        <div class="info-row"><span>2.</span><span>5 community cards are revealed across 3 stages: Flop (3 cards), Turn (+1), River (+1).</span></div>
+        <div class="info-row"><span>3.</span><span>Make the best 5-card hand from any combination of your 2 + the 5 community cards.</span></div>
+      </div>
+      <div class="info-section">
+        <h3>Betting Rounds</h3>
+        <div class="info-row"><span>🪙</span><span><strong style="color:#f0c040">Blinds</strong> — Small blind $5 and big blind $10 are posted automatically before the deal.</span></div>
+        <div class="info-row"><span>🃏</span><span><strong style="color:#f0c040">Pre-Flop</strong> → <strong style="color:#f0c040">Flop</strong> → <strong style="color:#f0c040">Turn</strong> → <strong style="color:#f0c040">River</strong> — bet each round.</span></div>
+      </div>
+      <div class="info-section">
+        <h3>Actions</h3>
+        <div class="info-row"><span>🚫</span><span><strong style="color:#f87171">Fold</strong> — Give up your hand. CPU wins the pot.</span></div>
+        <div class="info-row"><span>✅</span><span><strong style="color:#4ade80">Check</strong> — Pass (only when no bet to call).</span></div>
+        <div class="info-row"><span>📞</span><span><strong style="color:#4ade80">Call</strong> — Match the current bet.</span></div>
+        <div class="info-row"><span>⬆️</span><span><strong style="color:#f0c040">Bet / Raise</strong> — Increase the stakes. Pick ½ Pot, Pot, or All-in.</span></div>
+      </div>
+      <div class="info-section" style="margin-bottom:0">
+        <h3>Hand Rankings (Best → Worst)</h3>
+        <div class="info-row"><span>👑</span><span>Royal Flush · Straight Flush · Four of a Kind · Full House · Flush</span></div>
+        <div class="info-row"><span>🃏</span><span>Straight · Three of a Kind · Two Pair · One Pair · High Card</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Result modal -->
+  <div id="resultModal" class="modal">
+    <div class="glass rounded-2xl p-6 w-full max-w-sm text-center" style="border:2px solid rgba(240,192,64,.4)">
+      <div id="resEmoji" class="text-5xl mb-2">🏆</div>
+      <h2 id="resTitle" class="text-3xl font-black gold mb-1">You Win!</h2>
+      <p id="resSub" class="text-green-300 text-sm mb-3"></p>
+      <div id="resCards" class="flex justify-around mb-3"></div>
+      <div id="resHands" class="text-sm mb-3"></div>
+      <div class="glass rounded-xl p-3 mb-3">
+        <div id="resChips" class="text-2xl font-black gold">$500</div>
+        <div class="text-xs text-green-300">Your chips</div>
+      </div>
+      <p id="resStatus" class="text-yellow-400 text-sm mb-4"></p>
+      <div class="flex gap-3">
+        <button onclick="closeResult()" class="btn-gold flex-1 py-3 rounded-xl">Next Hand</button>
+        <a href="index.html" class="flex-1 py-3 rounded-xl font-bold text-center text-white"
+           style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2)">Home</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SUITS = ['clovers','diamonds','hearts','spades'];
+    const VALUES = ['2','3','4','5','6','7','8','9','10','jack','queen','king','ace'];
+
+    const pName = localStorage.getItem('pcp_name') || 'You';
+    document.getElementById('playerLabel').textContent = pName;
+
+    let G = newState();
+
+    function newState() {
+      return {
+        pChips: 500, cChips: 500,
+        pHand: [], cHand: [], comm: [], deck: [],
+        pot: 0, pBet: 0, cBet: 0, curBet: 0,
+        stage: 'idle',
+        dealer: 0,       // 0=player is SB/dealer heads-up
+        pTurn: true,
+        pActed: false, cActed: false,
+        pFolded: false, cFolded: false,
+        handNum: 0
+      };
+    }
+
+    // ── Deck ──────────────────────────────────────────
+    function buildDeck() {
+      const d = [];
+      for (const s of SUITS)
+        VALUES.forEach((v, p) => d.push({ s, v, p, img: `cards/${s}/${v}.jpg` }));
+      for (let i = d.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [d[i], d[j]] = [d[j], d[i]];
+      }
+      return d;
+    }
+
+    // ── Hand evaluation ───────────────────────────────
+    function evalFive(five) {
+      const pw = five.map(c => c.p).sort((a, b) => b - a);
+      const su = five.map(c => c.s);
+      const flush = new Set(su).size === 1;
+      const freq = {};
+      pw.forEach(p => freq[p] = (freq[p] || 0) + 1);
+      const grp = Object.entries(freq)
+        .map(([p, n]) => [+p, n])
+        .sort((a, b) => b[1] - a[1] || b[0] - a[0]);
+      const cnt = grp.map(g => g[1]);
+      const top = grp.map(g => g[0]);
+      const uniq = [...new Set(pw)];
+      let sh = -1;
+      if (uniq.length === 5) {
+        if (pw[0] - pw[4] === 4) sh = pw[0];
+        // wheel A-2-3-4-5
+        if (sh < 0 && pw[0] === 12 && pw[1] === 3 && pw[4] === 0) sh = 3;
+      }
+      const str = sh >= 0;
+      if (flush && str) return { r: sh === 12 ? 8 : 7, tb: [sh], n: sh === 12 ? 'Royal Flush' : 'Straight Flush' };
+      if (cnt[0] === 4) return { r: 6, tb: top, n: 'Four of a Kind' };
+      if (cnt[0] === 3 && cnt[1] === 2) return { r: 5, tb: top, n: 'Full House' };
+      if (flush)  return { r: 4, tb: pw,  n: 'Flush' };
+      if (str)    return { r: 3, tb: [sh], n: 'Straight' };
+      if (cnt[0] === 3) return { r: 2, tb: top, n: 'Three of a Kind' };
+      if (cnt[0] === 2 && cnt[1] === 2) return { r: 1, tb: top, n: 'Two Pair' };
+      if (cnt[0] === 2) return { r: 0, tb: top, n: 'One Pair' };
+      return { r: -1, tb: pw, n: 'High Card' };
+    }
+
+    function bestHand(cards) {
+      if (cards.length < 5) return null;
+      if (cards.length === 5) return evalFive(cards);
+      let best = null;
+      for (let i = 0; i < cards.length - 1; i++)
+        for (let j = i + 1; j < cards.length; j++) {
+          const h = evalFive(cards.filter((_, k) => k !== i && k !== j));
+          if (!best || cmpH(h, best) > 0) best = h;
+        }
+      return best;
+    }
+
+    function cmpH(a, b) {
+      if (a.r !== b.r) return a.r - b.r;
+      for (let i = 0; i < Math.max(a.tb.length, b.tb.length); i++) {
+        const d = (a.tb[i] ?? -1) - (b.tb[i] ?? -1);
+        if (d) return d;
+      }
+      return 0;
+    }
+
+    // ── CPU AI ────────────────────────────────────────
+    function cpuStrength() {
+      const all = [...G.cHand, ...G.comm];
+      if (all.length < 5) {
+        const pw = G.cHand.map(c => c.p).sort((a, b) => b - a);
+        let s = (pw[0] + pw[1]) / 26;
+        if (pw[0] === pw[1]) s += 0.25;
+        if (G.cHand[0].s === G.cHand[1].s) s += 0.05;
+        return Math.min(s, 1);
+      }
+      const h = bestHand(all);
+      return h ? (h.r + 1) / 9 : 0;
+    }
+
+    function cpuDecide() {
+      const toCall = G.curBet - G.cBet;
+      const str = cpuStrength();
+      const r = Math.random();
+      if (str > 0.68 || (str > 0.50 && r > 0.4)) {
+        const raise = Math.min(G.curBet + Math.max(G.pot, 20), G.cChips + G.cBet);
+        return raise > G.curBet ? { a: 'raise', to: raise } : { a: 'call' };
+      }
+      if (str > 0.28 || toCall === 0 || (str > 0.15 && r > 0.5))
+        return toCall === 0 ? { a: 'check' } : { a: 'call' };
+      return r > 0.35 ? { a: 'call' } : { a: 'fold' };
+    }
+
+    // ── Game flow ─────────────────────────────────────
+    function startNewHand() {
+      if (G.pChips <= 0) G.pChips = 500;
+      if (G.cChips <= 0) G.cChips = 500;
+
+      G.handNum++;
+      G.deck = buildDeck();
+      G.pHand = [G.deck.pop(), G.deck.pop()];
+      G.cHand = [G.deck.pop(), G.deck.pop()];
+      G.comm = [];
+      G.pot = 0; G.pBet = 0; G.cBet = 0; G.curBet = 0;
+      G.pFolded = false; G.cFolded = false;
+      G.pActed = false; G.cActed = false;
+      G.dealer = G.dealer === 0 ? 1 : 0;
+      G.stage = 'preflop';
+
+      // Post blinds: dealer = SB (5), other = BB (10) — heads-up convention
+      const pIsSB = G.dealer === 0;
+      postBlind(pIsSB ? 'p' : 'c', 5);
+      postBlind(pIsSB ? 'c' : 'p', 10);
+      // SB acts first pre-flop in heads-up
+      G.pTurn = pIsSB;
+
+      setStage('Pre-Flop');
+      log(`Hand #${G.handNum} — blinds posted ($5/$10). ${pIsSB ? pName : 'CPU'} is dealer/SB.`);
+      renderAll();
+      showBets();
+      updateButtons();
+      if (!G.pTurn) { lockButtons(); setTimeout(cpuGo, 900); }
+    }
+
+    function postBlind(who, amt) {
+      const actual = Math.min(amt, who === 'p' ? G.pChips : G.cChips);
+      if (who === 'p') { G.pChips -= actual; G.pBet += actual; }
+      else { G.cChips -= actual; G.cBet += actual; }
+      G.pot += actual;
+      G.curBet = Math.max(G.curBet, who === 'p' ? G.pBet : G.cBet);
+    }
+
+    function applyBet(who, toAmt) {
+      const cur = who === 'p' ? G.pBet : G.cBet;
+      const chips = who === 'p' ? G.pChips : G.cChips;
+      const add = Math.min(toAmt - cur, chips);
+      if (add <= 0) return;
+      if (who === 'p') { G.pChips -= add; G.pBet += add; }
+      else { G.cChips -= add; G.cBet += add; }
+      G.pot += add;
+      G.curBet = Math.max(G.curBet, who === 'p' ? G.pBet : G.cBet);
+    }
+
+    function bettingDone() {
+      if (G.pFolded || G.cFolded) return true;
+      if (!G.pActed || !G.cActed) return false;
+      return G.pBet === G.cBet || G.pChips === 0 || G.cChips === 0;
+    }
+
+    function nextStage() {
+      G.pBet = 0; G.cBet = 0; G.curBet = 0;
+      G.pActed = false; G.cActed = false;
+      const order = ['preflop','flop','turn','river','showdown'];
+      G.stage = order[order.indexOf(G.stage) + 1];
+
+      if (G.stage === 'flop') {
+        G.comm.push(G.deck.pop(), G.deck.pop(), G.deck.pop());
+        setStage('Flop'); log('Flop dealt.');
+      } else if (G.stage === 'turn') {
+        G.comm.push(G.deck.pop());
+        setStage('Turn'); log('Turn dealt.');
+      } else if (G.stage === 'river') {
+        G.comm.push(G.deck.pop());
+        setStage('River'); log('River dealt.');
+      } else {
+        doShowdown(); return;
+      }
+
+      renderAll();
+      // Post-flop: non-dealer acts first (dealer = 0 means player is dealer → CPU acts first)
+      G.pTurn = G.dealer === 1;
+      updateButtons();
+      if (!G.pTurn) { lockButtons(); setTimeout(cpuGo, 900); }
+    }
+
+    function doShowdown() {
+      const pH = bestHand([...G.pHand, ...G.comm]);
+      const cH = bestHand([...G.cHand, ...G.comm]);
+      const cmp = cmpH(pH, cH);
+      let pWon = false, split = false;
+
+      if (cmp > 0) { pWon = true; G.pChips += G.pot; }
+      else if (cmp < 0) { G.cChips += G.pot; }
+      else { split = true; const h = Math.floor(G.pot / 2); G.pChips += h; G.cChips += G.pot - h; }
+      G.pot = 0;
+
+      renderAll(true);
+      showResult(pWon, split, pH, cH);
+    }
+
+    // ── Player action ─────────────────────────────────
+    function act(type) {
+      if (!G.pTurn) return;
+      document.getElementById('raisePanel').classList.add('hidden');
+
+      if (type === 'fold') {
+        G.pFolded = true; G.cChips += G.pot; G.pot = 0;
+        log(`${pName} folds. CPU wins.`);
+        updateChips();
+        setTimeout(() => openResult(false, false, null, null, 'fold'), 300);
+        return;
+      }
+      if (type === 'check') {
+        if (G.curBet > G.pBet) return;
+        log(`${pName} checks.`);
+        G.pActed = true;
+      } else if (type === 'call') {
+        const toCall = G.curBet - G.pBet;
+        applyBet('p', G.curBet);
+        log(`${pName} calls $${toCall}.`);
+        G.pActed = true;
+      } else if (type === 'raise') {
+        const amt = parseInt(document.getElementById('raiseAmt').value) || 0;
+        const max = G.pChips + G.pBet;
+        const min = Math.max(G.curBet * 2, G.curBet + 10);
+        const raiseTo = Math.max(Math.min(amt, max), Math.min(min, max));
+        applyBet('p', raiseTo);
+        log(`${pName} raises to $${raiseTo}.`);
+        G.pActed = true; G.cActed = false;
+      }
+
+      G.pTurn = false;
+      renderAll(); updateChips();
+      if (bettingDone()) { setTimeout(nextStage, 500); }
+      else { lockButtons(); setTimeout(cpuGo, 800); }
+    }
+
+    function toggleRaise() {
+      const p = document.getElementById('raisePanel');
+      p.classList.toggle('hidden');
+      if (!p.classList.contains('hidden')) {
+        const min = Math.max(G.curBet * 2, G.curBet + 10);
+        document.getElementById('raiseAmt').value = Math.min(min, G.pChips + G.pBet);
+      }
+    }
+
+    function quickRaise(type) {
+      const max = G.pChips + G.pBet;
+      const base = type === 'half' ? G.curBet + Math.floor(G.pot / 2)
+                 : type === 'pot'  ? G.curBet + G.pot
+                 : max;
+      document.getElementById('raiseAmt').value = Math.min(base, max);
+    }
+
+    // ── CPU turn ──────────────────────────────────────
+    function cpuGo() {
+      const d = cpuDecide();
+
+      if (d.a === 'fold') {
+        G.cFolded = true; G.pChips += G.pot; G.pot = 0;
+        log('CPU folds. ' + pName + ' wins!');
+        updateChips();
+        setTimeout(() => openResult(true, false, null, null, 'cpufold'), 300);
+        return;
+      }
+      if (d.a === 'check') {
+        log('CPU checks.'); G.cActed = true;
+      } else if (d.a === 'call') {
+        const toCall = G.curBet - G.cBet;
+        applyBet('c', G.curBet);
+        log(`CPU calls $${toCall}.`); G.cActed = true;
+      } else if (d.a === 'raise') {
+        applyBet('c', d.to);
+        log(`CPU raises to $${d.to}.`);
+        G.cActed = true; G.pActed = false;
+      }
+
+      updateChips();
+      renderAll();
+      if (bettingDone()) { setTimeout(nextStage, 500); }
+      else { G.pTurn = true; showBets(); updateButtons(); }
+    }
+
+    // ── Render ────────────────────────────────────────
+    function renderAll(revealCPU = false) {
+      // Player cards
+      const pEl = document.getElementById('playerCards');
+      if (G.pHand.length) {
+        pEl.innerHTML = G.pHand.map(c =>
+          `<div class="card card-lg fade-up"><img src="${c.img}"></div>`).join('');
+      }
+      // CPU cards
+      const cEl = document.getElementById('cpuCards');
+      if (G.cHand.length) {
+        if (revealCPU) {
+          cEl.innerHTML = G.cHand.map(c =>
+            `<div class="card card-md fade-up"><img src="${c.img}"></div>`).join('');
+        } else {
+          cEl.innerHTML = `<div class="card card-md"><img src="cards/back.jpg"></div><div class="card card-md"><img src="cards/back.jpg"></div>`;
+        }
+      }
+      // Community
+      const comm = document.getElementById('communityCards');
+      comm.innerHTML = '';
+      for (let i = 0; i < 5; i++) {
+        const d = document.createElement('div');
+        if (i < G.comm.length) {
+          d.className = 'card card-sm fade-up';
+          d.innerHTML = `<img src="${G.comm[i].img}">`;
+        } else {
+          d.className = 'card-slot card-sm';
+        }
+        comm.appendChild(d);
+      }
+      // Hand labels
+      const pAll = [...G.pHand, ...G.comm];
+      const pH = pAll.length >= 5 ? bestHand(pAll) : null;
+      document.getElementById('playerHandLabel').textContent = pH ? pH.n : '';
+      if (revealCPU) {
+        const cAll = [...G.cHand, ...G.comm];
+        const cH = cAll.length >= 5 ? bestHand(cAll) : null;
+        document.getElementById('cpuHandLabel').textContent = cH ? cH.n : '';
+      } else {
+        document.getElementById('cpuHandLabel').textContent = '';
+      }
+    }
+
+    function updateChips() {
+      document.getElementById('playerChips').textContent = G.pChips;
+      document.getElementById('cpuChips').textContent = G.cChips;
+      document.getElementById('potDisplay').textContent = `$${G.pot}`;
+      document.getElementById('pBetDisplay').textContent = `$${G.pBet}`;
+      document.getElementById('cBetDisplay').textContent = `$${G.cBet}`;
+    }
+
+    function updateButtons() {
+      const toCall = G.curBet - G.pBet;
+      const canCheck = toCall === 0;
+      document.getElementById('btnCheck').classList.toggle('hidden', !canCheck);
+      document.getElementById('btnCall').classList.toggle('hidden', canCheck);
+      document.getElementById('btnCall').textContent = `Call $${toCall}`;
+      document.getElementById('btnRaise').textContent = canCheck ? 'Bet' : 'Raise';
+      unlockButtons();
+    }
+
+    function lockButtons() {
+      ['btnFold','btnCheck','btnCall','btnRaise'].forEach(id => {
+        const b = document.getElementById(id);
+        if (b) b.disabled = true;
+      });
+    }
+    function unlockButtons() {
+      ['btnFold','btnCheck','btnCall','btnRaise'].forEach(id => {
+        const b = document.getElementById(id);
+        if (b) b.disabled = false;
+      });
+    }
+
+    function showBets() {
+      document.getElementById('dealScreen').classList.add('hidden');
+      document.getElementById('betScreen').classList.remove('hidden');
+      document.getElementById('raisePanel').classList.add('hidden');
+      updateChips();
+    }
+
+    function showDeal() {
+      document.getElementById('dealScreen').classList.remove('hidden');
+      document.getElementById('betScreen').classList.add('hidden');
+    }
+
+    function log(msg) { document.getElementById('gameLog').textContent = msg; }
+    function setStage(s) { document.getElementById('stageLabel').textContent = s; }
+
+    // ── Result modal ──────────────────────────────────
+    function showResult(pWon, split, pH, cH) {
+      setTimeout(() => openResult(pWon, split, pH, cH, 'showdown'), 500);
+    }
+
+    function openResult(pWon, split, pH, cH, type) {
+      const emoji = type === 'fold' ? '😔' : type === 'cpufold' ? '🎉' : pWon ? '🏆' : split ? '🤝' : '💀';
+      const title = type === 'fold' ? 'You Folded' : type === 'cpufold' ? 'CPU Folded!' : pWon ? 'You Win!' : split ? 'Split Pot!' : 'CPU Wins';
+      const color = (pWon || split || type === 'cpufold') ? '#f0c040' : '#f87171';
+      const sub = type === 'fold' ? 'CPU wins this hand.' :
+                  type === 'cpufold' ? pName + ' wins this hand!' :
+                  split ? `${pName}: ${pH.n}  vs  CPU: ${cH.n}` :
+                  pWon ? `Your ${pH.n} beats CPU's ${cH.n}!` :
+                  `CPU's ${cH.n} beats your ${pH.n}.`;
+
+      document.getElementById('resEmoji').textContent = emoji;
+      document.getElementById('resTitle').textContent = title;
+      document.getElementById('resTitle').style.color = color;
+      document.getElementById('resSub').textContent = sub;
+      document.getElementById('resChips').textContent = `$${G.pChips}`;
+
+      if (type === 'showdown' && pH && cH) {
+        document.getElementById('resCards').innerHTML = `
+          <div class="text-center">
+            <p class="text-xs text-green-300 mb-1">${pName}</p>
+            <div class="flex gap-1">${G.pHand.map(c=>`<div class="card card-sm"><img src="${c.img}"></div>`).join('')}</div>
+          </div>
+          <div class="text-center">
+            <p class="text-xs text-green-300 mb-1">CPU</p>
+            <div class="flex gap-1">${G.cHand.map(c=>`<div class="card card-sm"><img src="${c.img}"></div>`).join('')}</div>
+          </div>`;
+      } else {
+        document.getElementById('resCards').innerHTML = '';
+      }
+
+      const lbWon = pWon || type === 'cpufold';
+      document.getElementById('resStatus').textContent = '';
+      if (lbWon) {
+        const scores = JSON.parse(localStorage.getItem('pcp_lb_holdem') || '[]');
+        const ex = scores.find(s => s.name === pName);
+        if (ex) { if (G.pChips > ex.score) { ex.score = G.pChips; ex.date = new Date().toLocaleDateString(); } }
+        else scores.push({ name: pName, score: G.pChips, date: new Date().toLocaleDateString() });
+        scores.sort((a, b) => b.score - a.score);
+        scores.splice(10);
+        localStorage.setItem('pcp_lb_holdem', JSON.stringify(scores));
+        const rank = scores.findIndex(s => s.name === pName) + 1;
+        document.getElementById('resStatus').textContent = rank <= 3 ? `🏆 #${rank} on the leaderboard!` : 'Score saved!';
+      }
+
+      document.getElementById('resultModal').classList.add('open');
+    }
+
+    function closeResult() {
+      document.getElementById('resultModal').classList.remove('open');
+      if (G.pChips <= 0) { G.pChips = 500; document.getElementById('dealNote').textContent = 'Restarted with $500!'; }
+      else { document.getElementById('dealNote').textContent = ''; }
+      showDeal();
+      updateChips();
+      document.getElementById('stageLabel').textContent = '';
+      document.getElementById('playerHandLabel').textContent = '';
+      document.getElementById('cpuHandLabel').textContent = '';
+    }
+
+    function openInfo() { document.getElementById('infoModal').classList.add('open'); }
+
+    // Init
+    updateChips();
+    log("Welcome to Texas Hold'em! Press Deal to start.");
+  </script>
+</body>
+</html>

@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gin Rummy – P's Card Play</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { background: radial-gradient(ellipse at 50% 30%, #2d7a50 0%, #1b4d35 65%, #0f2d1f 100%); min-height: 100vh; font-family: 'Segoe UI', system-ui, sans-serif; }
+    .gold { color: #f0c040; }
+    .glass { background: rgba(0,0,0,0.35); border: 1px solid rgba(255,215,0,0.2); }
+    .btn-gold { background: linear-gradient(135deg, #b8860b, #f0c040, #b8860b); color: #1a1000; font-weight: 700; transition: all 0.2s; box-shadow: 0 4px 12px rgba(240,192,64,0.3); cursor: pointer; }
+    .btn-gold:hover { filter: brightness(1.1); transform: translateY(-1px); }
+    .btn-gold:active { transform: translateY(0); }
+    .btn-outline { background: rgba(0,0,0,0.3); border: 2px solid rgba(240,192,64,0.4); color: #f0c040; font-weight: 600; transition: all 0.2s; cursor: pointer; }
+    .btn-outline:hover { background: rgba(240,192,64,0.1); border-color: #f0c040; }
+    .btn-action { background: rgba(0,0,0,0.4); border: 2px solid rgba(100,200,100,0.4); color: #6fdc8c; font-weight: 600; border-radius: 10px; padding: 8px 18px; cursor: pointer; transition: all 0.15s; font-size: 0.875rem; }
+    .btn-action:hover { background: rgba(100,200,100,0.1); border-color: #6fdc8c; }
+    .btn-action:disabled { opacity: 0.35; cursor: default; }
+    .btn-action:disabled:hover { background: rgba(0,0,0,0.4); border-color: rgba(100,200,100,0.4); }
+
+    .card-img { width: 52px; height: 73px; border-radius: 5px; object-fit: cover; box-shadow: 0 2px 6px rgba(0,0,0,0.5); display: inline-block; cursor: pointer; transition: transform 0.15s, box-shadow 0.15s; flex-shrink: 0; }
+    .card-img:hover { transform: translateY(-5px); }
+    .card-img.selected { transform: translateY(-12px); box-shadow: 0 0 0 3px #f0c040, 0 12px 20px rgba(0,0,0,0.6); }
+    .card-img.in-meld { box-shadow: 0 0 0 2px #6fdc8c; }
+    .card-img.deadwood { opacity: 0.7; }
+
+    #discardTop { width: 52px; height: 73px; border-radius: 5px; box-shadow: 0 4px 12px rgba(0,0,0,0.6); cursor: pointer; transition: transform 0.15s; }
+    #discardTop:hover { transform: scale(1.05); }
+    #deckTop { width: 52px; height: 73px; border-radius: 5px; box-shadow: 0 4px 12px rgba(0,0,0,0.6); cursor: pointer; transition: transform 0.15s; }
+    #deckTop:hover { transform: scale(1.05); }
+    .cpu-back { width: 40px; height: 56px; border-radius: 4px; background: #1a4a2e; border: 2px solid rgba(240,192,64,0.3); flex-shrink: 0; }
+
+    #infoModal { display: none; position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; }
+    #infoModal.active { display: flex; }
+    .modal-box { background: #1b4d35; border: 2px solid rgba(240,192,64,0.4); border-radius: 20px; padding: 28px; max-width: 440px; width: 90%; max-height: 82vh; overflow-y: auto; }
+    #resultModal { display: none; position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,0.75); align-items: center; justify-content: center; }
+    #resultModal.active { display: flex; }
+  </style>
+</head>
+<body>
+
+  <!-- Info Modal -->
+  <div id="infoModal" onclick="if(event.target===this)this.classList.remove('active')">
+    <div class="modal-box">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-bold gold">Gin Rummy — How to Play</h2>
+        <button onclick="document.getElementById('infoModal').classList.remove('active')" class="text-yellow-400 text-2xl leading-none">&times;</button>
+      </div>
+      <div class="text-green-100 text-sm space-y-3">
+        <p><strong class="text-yellow-400">Goal:</strong> Form your 10-card hand into melds (sets/runs) and minimize deadwood (unmelded cards).</p>
+        <p><strong class="text-yellow-400">Melds:</strong> A <em>set</em> is 3–4 cards of the same rank. A <em>run</em> is 3+ consecutive cards in the same suit (e.g. 4♠ 5♠ 6♠). Ace is always low (A-2-3).</p>
+        <p><strong class="text-yellow-400">Deadwood points:</strong> Ace = 1, numbered cards = face value, J/Q/K = 10.</p>
+        <p><strong class="text-yellow-400">Turn:</strong> Draw from the deck or pick up the discard pile's top card. Then discard one card.</p>
+        <p><strong class="text-yellow-400">Knocking:</strong> When your deadwood is ≤ 10 points, you may knock after drawing. Click a card to discard it, then press Knock.</p>
+        <p><strong class="text-yellow-400">Gin:</strong> If your deadwood reaches 0, you can declare Gin for a 25-point bonus.</p>
+        <p><strong class="text-yellow-400">Showdown:</strong> After you knock, the CPU lays off its cards onto your melds if possible. If the CPU's deadwood ≤ yours, it wins with an undercut bonus (+25). Otherwise you score the difference.</p>
+        <p><strong class="text-yellow-400">Winning:</strong> First to 100 points wins the match. Score is your cumulative match wins.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Result Modal -->
+  <div id="resultModal" onclick="if(event.target===this)this.classList.remove('active')">
+    <div class="modal-box text-center">
+      <h2 id="resultTitle" class="text-2xl font-black gold mb-3"></h2>
+      <p id="resultBody" class="text-green-100 text-sm mb-5 whitespace-pre-line"></p>
+      <button onclick="document.getElementById('resultModal').classList.remove('active')" class="btn-gold px-8 py-2.5 rounded-xl">Continue</button>
+    </div>
+  </div>
+
+  <div class="max-w-xl mx-auto px-4 py-8">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-5">
+      <a href="index.html" class="btn-outline px-4 py-2 rounded-xl text-sm">← Hub</a>
+      <h1 class="text-3xl font-black gold" style="text-shadow:0 0 20px rgba(240,192,64,.3)">Gin Rummy</h1>
+      <button onclick="document.getElementById('infoModal').classList.add('active')"
+              class="w-9 h-9 rounded-full border-2 border-yellow-400 text-yellow-400 font-bold text-base flex items-center justify-center hover:bg-yellow-400 hover:text-black transition-all">i</button>
+    </div>
+
+    <!-- Score bar -->
+    <div class="glass rounded-xl px-4 py-2 mb-4 flex items-center justify-between text-sm">
+      <span class="text-green-300">You: <span id="playerScore" class="text-yellow-400 font-bold">0</span> pts</span>
+      <span id="statusMsg" class="text-white font-semibold text-center flex-1 mx-3">Start a new hand</span>
+      <span class="text-green-300">CPU: <span id="cpuScore" class="text-yellow-400 font-bold">0</span> pts</span>
+    </div>
+
+    <!-- CPU hand -->
+    <div class="glass rounded-xl p-3 mb-4">
+      <p class="text-xs text-green-400 mb-1">CPU's Hand (<span id="cpuCardCount">10</span> cards)</p>
+      <div id="cpuHand" class="flex flex-wrap gap-1"></div>
+    </div>
+
+    <!-- Draw area -->
+    <div class="glass rounded-xl p-4 mb-4">
+      <div class="flex items-center justify-center gap-8">
+        <div class="text-center">
+          <p class="text-xs text-green-400 mb-1">Deck (<span id="deckCount">0</span>)</p>
+          <img id="deckTop" src="cards/back.jpg" onclick="drawFromDeck()" alt="Deck">
+        </div>
+        <div class="text-center">
+          <p class="text-xs text-green-400 mb-1">Discard</p>
+          <img id="discardTop" src="cards/back.jpg" onclick="drawFromDiscard()" alt="Discard">
+        </div>
+      </div>
+      <p id="drawHint" class="text-center text-xs text-yellow-400 mt-2"></p>
+    </div>
+
+    <!-- Action buttons -->
+    <div class="flex gap-3 justify-center mb-4">
+      <button id="btnKnock" class="btn-action" onclick="playerKnock()" disabled>Knock (discard first)</button>
+      <button id="btnGin" class="btn-action" style="border-color:rgba(240,192,64,0.5);color:#f0c040;" onclick="playerGin()" disabled>Gin!</button>
+    </div>
+
+    <!-- Player hand -->
+    <div class="glass rounded-xl p-3 mb-4">
+      <p class="text-xs text-green-400 mb-1">Your Hand — click to select, then click again or use Discard</p>
+      <div id="playerHand" class="flex flex-wrap gap-1.5"></div>
+    </div>
+
+    <!-- Discard selected card button -->
+    <div class="flex gap-3 justify-center mb-5">
+      <button id="btnDiscard" class="btn-action" onclick="discardSelected()" disabled>Discard Selected Card</button>
+    </div>
+
+    <div class="text-center">
+      <button onclick="newHand()" class="btn-gold px-8 py-3 rounded-xl text-base">New Hand</button>
+    </div>
+
+  </div>
+
+  <script>
+    const SUITS = ['spades', 'hearts', 'clovers', 'diamonds'];
+    const VALUES = ['ace','2','3','4','5','6','7','8','9','10','jack','queen','king'];
+    const RANK_VAL = { ace:1,'2':2,'3':3,'4':4,'5':5,'6':6,'7':7,'8':8,'9':9,'10':10,jack:10,queen:10,king:10 };
+    const RANK_SEQ = { ace:1,'2':2,'3':3,'4':4,'5':5,'6':6,'7':7,'8':8,'9':9,'10':10,jack:11,queen:12,king:13 };
+
+    const playerName = localStorage.getItem('pcp_name') || 'Player';
+
+    let G = {
+      deck: [], discard: [],
+      playerHand: [], cpuHand: [],
+      playerScore: 0, cpuScore: 0,
+      matchWins: 0,
+      phase: 'deal', // deal | draw | discard
+      drawnCard: null,
+      selectedIdx: -1,
+    };
+
+    function buildDeck() {
+      const d = [];
+      for (const s of SUITS) for (const v of VALUES) d.push({ suit: s, val: v });
+      for (let i = d.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [d[i], d[j]] = [d[j], d[i]];
+      }
+      return d;
+    }
+
+    function cardImg(c) { return `cards/${c.suit}/${c.val}.jpg`; }
+
+    function newHand() {
+      const deck = buildDeck();
+      G.playerHand = deck.splice(0, 10);
+      G.cpuHand = deck.splice(0, 10);
+      G.discard = [deck.pop()];
+      G.deck = deck;
+      G.phase = 'draw';
+      G.drawnCard = null;
+      G.selectedIdx = -1;
+      render();
+      setStatus('Draw from deck or discard pile.');
+      updateButtons();
+    }
+
+    function setStatus(msg) { document.getElementById('statusMsg').textContent = msg; }
+
+    function updateButtons() {
+      const dw = deadwoodPoints(G.playerHand);
+      const btnK = document.getElementById('btnKnock');
+      const btnG = document.getElementById('btnGin');
+      const btnD = document.getElementById('btnDiscard');
+      const canAct = G.phase === 'discard';
+      btnD.disabled = !(canAct && G.selectedIdx >= 0);
+      btnK.disabled = !(canAct && dw <= 10 && G.selectedIdx >= 0);
+      btnG.disabled = !(canAct && dw === 0);
+      if (canAct && dw <= 10 && G.selectedIdx >= 0) {
+        btnK.textContent = `Knock (${dw} pts deadwood)`;
+      } else {
+        btnK.textContent = 'Knock (discard first)';
+      }
+    }
+
+    // --- Meld detection ---
+    function findMelds(hand) {
+      // Returns array of meld arrays (sets + runs) that maximize melded cards
+      let bestMelds = [];
+      let bestDW = Infinity;
+
+      function recurse(remaining, current) {
+        // Try all possible sets/runs from remaining
+        const sets = findSets(remaining);
+        const runs = findRuns(remaining);
+        const options = [...sets, ...runs];
+
+        // Prune: calc current DW if we stop here
+        const dw = remaining.reduce((s, c) => s + RANK_VAL[c.val], 0);
+        if (dw < bestDW || (dw === bestDW && current.length > bestMelds.flat().length)) {
+          bestDW = dw;
+          bestMelds = [...current];
+        }
+
+        for (const meld of options) {
+          const rem = remaining.filter(c => !meld.includes(c));
+          recurse(rem, [...current, meld]);
+        }
+      }
+
+      recurse([...hand], []);
+      return bestMelds;
+    }
+
+    function findSets(cards) {
+      const byRank = {};
+      for (const c of cards) {
+        if (!byRank[c.val]) byRank[c.val] = [];
+        byRank[c.val].push(c);
+      }
+      const sets = [];
+      for (const rank in byRank) {
+        if (byRank[rank].length >= 3) {
+          // 3-card combinations
+          const g = byRank[rank];
+          for (let i = 0; i < g.length - 2; i++)
+            for (let j = i+1; j < g.length - 1; j++)
+              for (let k = j+1; k < g.length; k++)
+                sets.push([g[i], g[j], g[k]]);
+          if (g.length === 4) sets.push(g.slice());
+        }
+      }
+      return sets;
+    }
+
+    function findRuns(cards) {
+      const runs = [];
+      for (const suit of SUITS) {
+        const suited = cards.filter(c => c.suit === suit)
+          .sort((a, b) => RANK_SEQ[a.val] - RANK_SEQ[b.val]);
+        // Find all run starts
+        for (let i = 0; i < suited.length; i++) {
+          let run = [suited[i]];
+          for (let j = i+1; j < suited.length; j++) {
+            if (RANK_SEQ[suited[j].val] === RANK_SEQ[run[run.length-1].val] + 1) {
+              run.push(suited[j]);
+            } else {
+              break;
+            }
+          }
+          if (run.length >= 3) {
+            // Add all sub-runs of length 3+
+            for (let len = 3; len <= run.length; len++) {
+              runs.push(run.slice(0, len));
+            }
+          }
+        }
+      }
+      return runs;
+    }
+
+    function deadwoodPoints(hand) {
+      const melds = findMelds(hand);
+      const melded = new Set(melds.flat());
+      return hand.reduce((s, c) => melded.has(c) ? s : s + RANK_VAL[c.val], 0);
+    }
+
+    function getMeldedCards(hand) {
+      const melds = findMelds(hand);
+      return new Set(melds.flat());
+    }
+
+    // --- Drawing ---
+    function drawFromDeck() {
+      if (G.phase !== 'draw') return;
+      if (G.deck.length === 0) { setStatus('Deck is empty!'); return; }
+      const card = G.deck.pop();
+      G.playerHand.push(card);
+      G.drawnCard = card;
+      G.phase = 'discard';
+      G.selectedIdx = G.playerHand.length - 1;
+      render();
+      setStatus('Drew from deck. Select a card and discard it (or Knock / Gin).');
+      updateButtons();
+    }
+
+    function drawFromDiscard() {
+      if (G.phase !== 'draw') return;
+      if (G.discard.length === 0) return;
+      const card = G.discard.pop();
+      G.playerHand.push(card);
+      G.drawnCard = card;
+      G.phase = 'discard';
+      G.selectedIdx = G.playerHand.length - 1;
+      render();
+      setStatus(`Picked up ${card.val} of ${card.suit}. Discard a card (or Knock / Gin).`);
+      updateButtons();
+    }
+
+    // --- Discarding ---
+    function selectCard(idx) {
+      if (G.phase !== 'discard') return;
+      G.selectedIdx = G.selectedIdx === idx ? -1 : idx;
+      render();
+      updateButtons();
+    }
+
+    function discardSelected() {
+      if (G.phase !== 'discard' || G.selectedIdx < 0) return;
+      const card = G.playerHand.splice(G.selectedIdx, 1)[0];
+      G.discard.push(card);
+      G.selectedIdx = -1;
+      G.phase = 'draw';
+      render();
+      setStatus('CPU is thinking…');
+      updateButtons();
+      setTimeout(cpuTurn, 900);
+    }
+
+    // --- Knocking ---
+    function playerKnock() {
+      if (G.phase !== 'discard' || G.selectedIdx < 0) return;
+      const dw = deadwoodPoints(G.playerHand);
+      if (dw > 10) { setStatus('Deadwood too high to knock!'); return; }
+      // Discard the selected card first
+      const card = G.playerHand.splice(G.selectedIdx, 1)[0];
+      G.discard.push(card);
+      G.selectedIdx = -1;
+      showdown(false);
+    }
+
+    function playerGin() {
+      if (G.phase !== 'discard') return;
+      const dw = deadwoodPoints(G.playerHand);
+      if (dw !== 0) { setStatus('You still have deadwood!'); return; }
+      // Discard selected if any
+      if (G.selectedIdx >= 0) {
+        const card = G.playerHand.splice(G.selectedIdx, 1)[0];
+        G.discard.push(card);
+        G.selectedIdx = -1;
+      }
+      showdown(true);
+    }
+
+    // --- Showdown ---
+    function showdown(isGin) {
+      const playerMelds = findMelds(G.playerHand);
+      const playerMelded = new Set(playerMelds.flat());
+      let playerDW = G.playerHand.reduce((s, c) => playerMelded.has(c) ? s : s + RANK_VAL[c.val], 0);
+
+      // CPU lays off onto player melds (unless Gin)
+      if (!isGin) {
+        for (const meld of playerMelds) {
+          for (let i = G.cpuHand.length - 1; i >= 0; i--) {
+            if (canLayOff(G.cpuHand[i], meld)) {
+              meld.push(G.cpuHand[i]);
+              G.cpuHand.splice(i, 1);
+            }
+          }
+        }
+      }
+
+      const cpuMelds = findMelds(G.cpuHand);
+      const cpuMelded = new Set(cpuMelds.flat());
+      const cpuDW = G.cpuHand.reduce((s, c) => cpuMelded.has(c) ? s : s + RANK_VAL[c.val], 0);
+
+      let title, body, scoreDelta = 0, cpuScoreDelta = 0;
+
+      if (isGin) {
+        scoreDelta = cpuDW + 25;
+        title = 'Gin! 🎉';
+        body = `You have Gin!\nCPU deadwood: ${cpuDW} pts\nYou score: ${cpuDW} + 25 bonus = ${scoreDelta} pts`;
+      } else if (cpuDW <= playerDW) {
+        // Undercut
+        cpuScoreDelta = (playerDW - cpuDW) + 25;
+        title = 'Undercut!';
+        body = `CPU undercuts you!\nYour deadwood: ${playerDW}  CPU deadwood: ${cpuDW}\nCPU scores: ${playerDW - cpuDW} + 25 bonus = ${cpuScoreDelta} pts`;
+      } else {
+        scoreDelta = cpuDW - playerDW;
+        title = 'You Knocked!';
+        body = `Your deadwood: ${playerDW}  CPU deadwood: ${cpuDW}\nYou score: ${scoreDelta} pts`;
+      }
+
+      G.playerScore += scoreDelta;
+      G.cpuScore += cpuScoreDelta;
+
+      // Check match win
+      if (G.playerScore >= 100) {
+        G.matchWins++;
+        title = 'Match Won! 🏆';
+        body += `\n\nYou reached 100 points — match won!\nTotal match wins: ${G.matchWins}`;
+        saveScore();
+        G.playerScore = 0;
+        G.cpuScore = 0;
+      } else if (G.cpuScore >= 100) {
+        title = 'CPU Wins the Match';
+        body += `\n\nCPU reached 100 points — match over.`;
+        G.playerScore = 0;
+        G.cpuScore = 0;
+      }
+
+      render();
+      document.getElementById('resultTitle').textContent = title;
+      document.getElementById('resultBody').textContent = body;
+      document.getElementById('resultModal').classList.add('active');
+    }
+
+    function canLayOff(card, meld) {
+      // Set: same rank
+      if (meld[0].val === meld[1].val) return card.val === meld[0].val;
+      // Run: same suit, extend either end
+      const suit = meld[0].suit;
+      if (card.suit !== suit) return false;
+      const seqs = meld.map(c => RANK_SEQ[c.val]).sort((a, b) => a - b);
+      return card.val !== '8' && (RANK_SEQ[card.val] === seqs[0] - 1 || RANK_SEQ[card.val] === seqs[seqs.length - 1] + 1);
+    }
+
+    // --- CPU turn ---
+    function cpuTurn() {
+      // Draw: pick discard if it helps, else deck
+      const top = G.discard.length > 0 ? G.discard[G.discard.length - 1] : null;
+      let drew = false;
+      if (top && G.deck.length > 0) {
+        const testHand = [...G.cpuHand, top];
+        const dwBefore = deadwoodPoints(G.cpuHand);
+        const dwAfter = deadwoodPoints(testHand);
+        if (dwAfter < dwBefore) {
+          G.cpuHand.push(G.discard.pop());
+          drew = true;
+        }
+      }
+      if (!drew) {
+        if (G.deck.length === 0) { setStatus('Deck empty — new hand.'); setTimeout(newHand, 1200); return; }
+        G.cpuHand.push(G.deck.pop());
+      }
+
+      // Discard: card with highest DW contribution
+      const melds = findMelds(G.cpuHand);
+      const melded = new Set(melds.flat());
+      const deadwood = G.cpuHand.filter(c => !melded.has(c)).sort((a, b) => RANK_VAL[b.val] - RANK_VAL[a.val]);
+      let discardCard;
+      if (deadwood.length > 0) {
+        discardCard = deadwood[0];
+      } else {
+        // All in melds — Gin
+        // find lowest-value meld card to discard
+        discardCard = G.cpuHand.reduce((a, b) => RANK_VAL[a.val] < RANK_VAL[b.val] ? a : b);
+      }
+      G.cpuHand.splice(G.cpuHand.indexOf(discardCard), 1);
+      G.discard.push(discardCard);
+
+      const cpuDW = deadwoodPoints(G.cpuHand);
+      if (cpuDW === 0) {
+        // CPU Gin
+        cpuGin();
+        return;
+      }
+      if (cpuDW <= 10 && Math.random() < 0.6) {
+        cpuKnock(cpuDW);
+        return;
+      }
+
+      G.phase = 'draw';
+      render();
+      setStatus('Your turn — draw from deck or discard pile.');
+      updateButtons();
+    }
+
+    function cpuGin() {
+      const cpuMelds = findMelds(G.cpuHand);
+      const cpuMelded = new Set(cpuMelds.flat());
+      const pDW = deadwoodPoints(G.playerHand);
+      G.cpuScore += pDW + 25;
+
+      if (G.cpuScore >= 100) {
+        document.getElementById('resultTitle').textContent = 'CPU Gin — Match Over';
+        document.getElementById('resultBody').textContent = `CPU has Gin!\nYour deadwood: ${pDW} pts\nCPU scores: ${pDW + 25} pts and wins the match.`;
+        G.playerScore = 0;
+        G.cpuScore = 0;
+      } else {
+        document.getElementById('resultTitle').textContent = 'CPU Gin!';
+        document.getElementById('resultBody').textContent = `CPU declared Gin.\nYour deadwood: ${pDW} pts\nCPU scores: ${pDW + 25} pts`;
+      }
+      render();
+      document.getElementById('resultModal').classList.add('active');
+    }
+
+    function cpuKnock(cpuDW) {
+      const pDW = deadwoodPoints(G.playerHand);
+      let title, body, cpuScoreDelta = 0, playerScoreDelta = 0;
+      if (pDW <= cpuDW) {
+        playerScoreDelta = (cpuDW - pDW) + 25;
+        title = 'Undercut!';
+        body = `CPU knocked with ${cpuDW} pts deadwood.\nYou have ${pDW} — you undercut!\nYou score ${playerScoreDelta} pts`;
+        G.playerScore += playerScoreDelta;
+      } else {
+        cpuScoreDelta = pDW - cpuDW;
+        title = 'CPU Knocked';
+        body = `CPU knocked with ${cpuDW} pts deadwood.\nYour deadwood: ${pDW} pts\nCPU scores ${cpuScoreDelta} pts`;
+        G.cpuScore += cpuScoreDelta;
+      }
+
+      if (G.playerScore >= 100) {
+        title = 'Match Won! 🏆';
+        body += '\n\nYou reached 100 points — match won!';
+        saveScore();
+        G.playerScore = 0;
+        G.cpuScore = 0;
+      } else if (G.cpuScore >= 100) {
+        body += '\n\nCPU reached 100 — match over.';
+        G.playerScore = 0;
+        G.cpuScore = 0;
+      }
+
+      render();
+      document.getElementById('resultTitle').textContent = title;
+      document.getElementById('resultBody').textContent = body;
+      document.getElementById('resultModal').classList.add('active');
+    }
+
+    // --- Render ---
+    function render() {
+      document.getElementById('playerScore').textContent = G.playerScore;
+      document.getElementById('cpuScore').textContent = G.cpuScore;
+      document.getElementById('deckCount').textContent = G.deck.length;
+      document.getElementById('cpuCardCount').textContent = G.cpuHand.length;
+
+      // Discard top
+      const discardEl = document.getElementById('discardTop');
+      if (G.discard.length > 0) {
+        discardEl.src = cardImg(G.discard[G.discard.length - 1]);
+        discardEl.style.opacity = G.phase === 'draw' ? '1' : '0.5';
+      } else {
+        discardEl.src = 'cards/back.jpg';
+      }
+
+      // Deck top
+      const deckEl = document.getElementById('deckTop');
+      deckEl.style.opacity = G.phase === 'draw' && G.deck.length > 0 ? '1' : '0.5';
+
+      // Hint
+      document.getElementById('drawHint').textContent = G.phase === 'draw' ? 'Click deck or discard to draw' : '';
+
+      // CPU hand
+      document.getElementById('cpuHand').innerHTML = G.cpuHand.map(() => `<div class="cpu-back"></div>`).join('');
+
+      // Player hand
+      const melded = getMeldedCards(G.playerHand);
+      const ph = document.getElementById('playerHand');
+      ph.innerHTML = G.playerHand.map((c, i) => {
+        const isMelded = melded.has(c);
+        const isSelected = i === G.selectedIdx;
+        const cls = `card-img${isSelected ? ' selected' : ''}${isMelded ? ' in-meld' : ' deadwood'}`;
+        return `<img src="${cardImg(c)}" class="${cls}" onclick="selectCard(${i})" title="${c.val} of ${c.suit}${isMelded ? ' (in meld)' : ' (deadwood)'}">`;
+      }).join('');
+    }
+
+    function saveScore() {
+      const key = 'pcp_lb_ginrummy';
+      const scores = JSON.parse(localStorage.getItem(key) || '[]');
+      const today = new Date().toLocaleDateString();
+      const existing = scores.findIndex(s => s.name === playerName);
+      if (existing >= 0) {
+        if (G.matchWins > scores[existing].score) scores[existing] = { name: playerName, score: G.matchWins, date: today };
+      } else {
+        scores.push({ name: playerName, score: G.matchWins, date: today });
+      }
+      scores.sort((a, b) => b.score - a.score);
+      localStorage.setItem(key, JSON.stringify(scores.slice(0, 10)));
+    }
+
+    newHand();
+  </script>
+</body>
+</html>

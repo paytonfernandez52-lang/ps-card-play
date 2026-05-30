@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>Solitaire — P's Card Play</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { background: radial-gradient(ellipse at 50% 30%, #2d7a50 0%, #1b4d35 65%, #0f2d1f 100%); min-height: 100vh; font-family: 'Segoe UI', system-ui, sans-serif; user-select: none; }
+    .gold { color: #f0c040; }
+    .glass { background: rgba(0,0,0,0.35); border: 1px solid rgba(255,215,0,0.2); }
+    .btn-gold { background: linear-gradient(135deg, #b8860b, #f0c040, #b8860b); color: #1a1000; font-weight: 700; transition: all 0.2s; }
+    .btn-gold:hover { filter: brightness(1.1); transform: translateY(-1px); }
+    .info-btn { width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid rgba(240,192,64,.55); color: #f0c040; font-size: 13px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; background: rgba(240,192,64,.08); }
+    .info-btn:hover { background: rgba(240,192,64,.22); }
+    .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.82); align-items: center; justify-content: center; z-index: 100; padding: 12px; }
+    .modal.open { display: flex; }
+    .info-section { margin-bottom: 13px; }
+    .info-section h3 { color: #f0c040; font-weight: 700; font-size: 0.78rem; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 5px; }
+    .info-row { display: flex; gap: 7px; align-items: flex-start; margin-bottom: 4px; font-size: 0.8rem; color: rgba(255,255,255,.85); line-height: 1.4; }
+    .info-row span:first-child { color: #f0c040; flex-shrink: 0; min-width: 16px; }
+
+    /* Game area */
+    #game-area { max-width: 380px; margin: 0 auto; padding: 0 6px; }
+
+    /* Card dimensions */
+    :root { --cw: 48px; --ch: 67px; }
+
+    .card-el {
+      width: var(--cw); height: var(--ch);
+      border-radius: 6px; overflow: hidden;
+      border: 1.5px solid rgba(255,255,255,.18);
+      box-shadow: 1px 2px 6px rgba(0,0,0,.45);
+      background: #1c3878; cursor: pointer; flex-shrink: 0;
+    }
+    .card-el img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .card-el.selected { border-color: #f0c040 !important; box-shadow: 0 0 10px rgba(240,192,64,.6) !important; }
+    .card-el.face-down { cursor: default; }
+
+    .card-slot {
+      width: var(--cw); height: var(--ch);
+      border-radius: 6px; border: 1.5px dashed rgba(255,255,255,.18);
+      background: rgba(0,0,0,.18); flex-shrink: 0; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.2rem; color: rgba(255,255,255,.15);
+    }
+    .card-slot.foundation { cursor: pointer; }
+
+    /* Column containers */
+    .col-wrap { position: relative; width: var(--cw); flex-shrink: 0; }
+
+    /* Top row layout */
+    #top-row { display: flex; gap: 6px; align-items: flex-start; margin-bottom: 8px; justify-content: space-between; }
+    #stock-waste { display: flex; gap: 6px; }
+    #foundations { display: flex; gap: 6px; }
+
+    @media (max-width: 350px) {
+      :root { --cw: 42px; --ch: 59px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="px-2 py-4">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-3 max-w-sm mx-auto">
+      <a href="index.html" class="text-green-300 hover:text-white text-sm">← Back</a>
+      <h1 class="text-lg font-black gold">🂡 Solitaire</h1>
+      <div class="flex items-center gap-3">
+        <button onclick="openInfo()" class="info-btn">i</button>
+        <button onclick="newGame()" class="text-green-300 hover:text-white text-sm">New Game</button>
+      </div>
+    </div>
+
+    <!-- Stats bar -->
+    <div class="glass rounded-xl px-4 py-2 flex justify-between items-center mb-3 max-w-sm mx-auto text-sm">
+      <span class="text-green-300">Moves: <span id="statMoves" class="gold font-bold">0</span></span>
+      <span id="statName" class="text-yellow-400 font-bold text-xs truncate max-w-24">—</span>
+      <span class="text-green-300">Time: <span id="statTime" class="text-white font-bold">0:00</span></span>
+    </div>
+
+    <!-- Game area -->
+    <div id="game-area">
+
+      <!-- Top row: stock, waste, gap, 4 foundations -->
+      <div id="top-row">
+        <div id="stock-waste">
+          <div id="stock-el" class="card-slot" onclick="clickStock()">🔄</div>
+          <div id="waste-el" class="card-slot" onclick="clickWaste()"></div>
+        </div>
+        <div id="foundations">
+          <div id="f0" class="card-slot foundation" data-f="0" onclick="clickFoundation(0)">♣</div>
+          <div id="f1" class="card-slot foundation" data-f="1" onclick="clickFoundation(1)">♦</div>
+          <div id="f2" class="card-slot foundation" data-f="2" onclick="clickFoundation(2)">♥</div>
+          <div id="f3" class="card-slot foundation" data-f="3" onclick="clickFoundation(3)">♠</div>
+        </div>
+      </div>
+
+      <!-- Tableau -->
+      <div style="display:flex;gap:6px;justify-content:center" id="tableau-row">
+        <div id="col-0" class="col-wrap" onclick="clickCol(0)"></div>
+        <div id="col-1" class="col-wrap" onclick="clickCol(1)"></div>
+        <div id="col-2" class="col-wrap" onclick="clickCol(2)"></div>
+        <div id="col-3" class="col-wrap" onclick="clickCol(3)"></div>
+        <div id="col-4" class="col-wrap" onclick="clickCol(4)"></div>
+        <div id="col-5" class="col-wrap" onclick="clickCol(5)"></div>
+        <div id="col-6" class="col-wrap" onclick="clickCol(6)"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Info Modal -->
+  <div id="infoModal" class="modal" onclick="if(event.target===this)this.classList.remove('open')">
+    <div class="glass rounded-2xl p-5 w-full max-w-sm" style="border:2px solid rgba(240,192,64,.35);max-height:92vh;overflow-y:auto">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-black gold">🂡 How to Play</h2>
+        <button onclick="document.getElementById('infoModal').classList.remove('open')" class="text-green-300 text-xl font-bold">✕</button>
+      </div>
+      <div class="info-section">
+        <h3>Goal</h3>
+        <div class="info-row"><span>🎯</span><span>Move all 52 cards to the 4 foundation piles, sorted by suit from Ace up to King.</span></div>
+      </div>
+      <div class="info-section">
+        <h3>Setup</h3>
+        <div class="info-row"><span>📋</span><span>7 tableau columns — column 1 has 1 card, column 2 has 2, etc. Only the top card faces up.</span></div>
+        <div class="info-row"><span>🃏</span><span>Remaining cards form the Stock (top left). Click it to flip a card to the Waste pile.</span></div>
+      </div>
+      <div class="info-section">
+        <h3>Moving Cards</h3>
+        <div class="info-row"><span>1.</span><span>Click a card to select it (gold highlight), then click the destination.</span></div>
+        <div class="info-row"><span>🏗️</span><span><strong style="color:#f0c040">Tableau:</strong> Stack cards in alternating colors, descending rank (e.g. red 6 on black 7).</span></div>
+        <div class="info-row"><span>👑</span><span>Only a King can be placed on an empty tableau column.</span></div>
+        <div class="info-row"><span>📦</span><span><strong style="color:#f0c040">Foundations:</strong> Build each suit from Ace → King. Click a card then click the matching foundation.</span></div>
+        <div class="info-row"><span>🔄</span><span>You can move stacks of face-up cards together in the tableau.</span></div>
+      </div>
+      <div class="info-section" style="margin-bottom:0">
+        <h3>Stock</h3>
+        <div class="info-row"><span>🔄</span><span>Click to flip 1 card to Waste. When empty, click to recycle all Waste cards back.</span></div>
+        <div class="info-row"><span>🏆</span><span>Win by filling all 4 foundations. Fewer moves = better leaderboard score!</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Win Modal -->
+  <div id="winModal" class="modal">
+    <div class="glass rounded-2xl p-7 w-full max-w-sm text-center" style="border:2px solid rgba(240,192,64,.4)">
+      <div class="text-5xl mb-3">🎉</div>
+      <h2 class="text-3xl font-black gold mb-2">You Win!</h2>
+      <p class="text-green-300 text-sm mb-4">All cards sent to foundations!</p>
+      <div class="grid grid-cols-2 gap-3 mb-4">
+        <div class="glass rounded-xl p-3">
+          <div id="winMoves" class="text-2xl font-black gold">0</div>
+          <div class="text-xs text-green-300">Moves</div>
+        </div>
+        <div class="glass rounded-xl p-3">
+          <div id="winTime" class="text-2xl font-black text-white">0:00</div>
+          <div class="text-xs text-green-300">Time</div>
+        </div>
+      </div>
+      <p id="winRank" class="text-yellow-400 text-sm mb-5"></p>
+      <div class="flex gap-3">
+        <button onclick="newGame()" class="btn-gold flex-1 py-3 rounded-xl">Play Again</button>
+        <a href="index.html" class="flex-1 py-3 rounded-xl font-bold text-center text-white"
+           style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2)">Home</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SUITS = ['clovers','diamonds','hearts','spades'];
+    const VALS  = ['ace','2','3','4','5','6','7','8','9','10','jack','queen','king'];
+    const RED   = new Set(['diamonds','hearts']);
+
+    const pName = localStorage.getItem('pcp_name') || 'Player';
+    document.getElementById('statName').textContent = pName;
+
+    let G, timerID, secs, moves;
+
+    // ── Deck ──────────────────────────────────────────
+    function makeDeck() {
+      const d = [];
+      for (const s of SUITS)
+        VALS.forEach((v, i) => d.push({ s, v, p: i + 1, img: `cards/${s}/${v}.jpg`, up: false }));
+      for (let i = d.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [d[i], d[j]] = [d[j], d[i]];
+      }
+      return d;
+    }
+
+    // ── New game ──────────────────────────────────────
+    function newGame() {
+      clearInterval(timerID); secs = 0; moves = 0;
+      document.getElementById('statMoves').textContent = '0';
+      document.getElementById('statTime').textContent = '0:00';
+      document.getElementById('winModal').classList.remove('open');
+
+      const deck = makeDeck();
+      const tab = Array.from({ length: 7 }, () => []);
+
+      for (let col = 0; col < 7; col++) {
+        for (let row = 0; row <= col; row++) {
+          const card = deck.pop();
+          card.up = row === col; // only top card face-up
+          tab[col].push(card);
+        }
+      }
+
+      G = {
+        stock: deck,          // remaining cards face-down
+        waste: [],            // flipped cards, top is playable
+        found: [[], [], [], []], // foundations by suit index
+        tab,
+        sel: null             // { src:'waste'|'found'|'tab', col, idx, cards:[] }
+      };
+
+      timerID = setInterval(() => {
+        if (moves === 0) return; // don't start until first move
+        secs++;
+        const m = Math.floor(secs / 60), s = secs % 60;
+        document.getElementById('statTime').textContent = m + ':' + String(s).padStart(2,'0');
+      }, 1000);
+
+      renderAll();
+    }
+
+    // ── Helpers ───────────────────────────────────────
+    function suitIdx(s) { return SUITS.indexOf(s); }
+    function isRed(c) { return RED.has(c.s); }
+
+    function canOnFoundation(card, pile) {
+      if (!pile.length) return card.v === 'ace';
+      const top = pile[pile.length - 1];
+      return card.s === top.s && card.p === top.p + 1;
+    }
+
+    function canOnTableau(card, pile) {
+      if (!pile.length) return card.v === 'king';
+      const top = pile[pile.length - 1];
+      return top.up && isRed(card) !== isRed(top) && card.p === top.p - 1;
+    }
+
+    function clearSel() { G.sel = null; renderAll(); }
+
+    function countMoves() {
+      moves++;
+      document.getElementById('statMoves').textContent = moves;
+    }
+
+    // ── Click handlers ────────────────────────────────
+    function clickStock() {
+      if (G.stock.length) {
+        const card = G.stock.pop();
+        card.up = true;
+        G.waste.push(card);
+      } else {
+        // Recycle waste → stock
+        G.stock = G.waste.reverse().map(c => ({ ...c, up: false }));
+        G.waste = [];
+      }
+      clearSel();
+      countMoves();
+    }
+
+    function clickWaste() {
+      if (!G.waste.length) return;
+      const card = G.waste[G.waste.length - 1];
+
+      // If something already selected, try to move to waste... not valid.
+      // Waste top is a source only.
+      if (G.sel && G.sel.src === 'waste') { clearSel(); return; }
+      if (G.sel) { clearSel(); return; }
+
+      G.sel = { src: 'waste', cards: [card] };
+      renderAll();
+    }
+
+    function clickFoundation(fi) {
+      const pile = G.found[fi];
+
+      if (G.sel) {
+        // Try to place selected card on this foundation
+        if (G.sel.cards.length === 1 && canOnFoundation(G.sel.cards[0], pile)) {
+          const card = G.sel.cards[0];
+          // Remove from source
+          if (G.sel.src === 'waste') G.waste.pop();
+          else if (G.sel.src === 'found') G.found[G.sel.fi].pop();
+          else {
+            const col = G.tab[G.sel.col];
+            col.splice(G.sel.idx);
+            if (col.length && !col[col.length - 1].up) col[col.length - 1].up = true;
+          }
+          pile.push(card);
+          countMoves();
+          clearSel();
+          checkWin();
+        } else {
+          clearSel();
+        }
+        return;
+      }
+
+      // Select top of foundation
+      if (pile.length) {
+        G.sel = { src: 'found', fi, cards: [pile[pile.length - 1]] };
+        renderAll();
+      }
+    }
+
+    function clickCol(col) {
+      const pile = G.tab[col];
+
+      if (G.sel) {
+        // Try to place selected cards onto this column
+        const bottomCard = G.sel.cards[0];
+        if (canOnTableau(bottomCard, pile)) {
+          // Remove from source
+          removeSelected();
+          G.sel.cards.forEach(c => { c.up = true; pile.push(c); });
+          countMoves();
+          clearSel();
+        } else {
+          clearSel();
+        }
+        return;
+      }
+
+      // Click on empty column (already handled by col-wrap onclick, but no card to select)
+      // Select nothing if empty
+      if (!pile.length) return;
+
+      // Click column background = click last card
+      const topIdx = pile.length - 1;
+      if (pile[topIdx].up) {
+        G.sel = { src: 'tab', col, idx: topIdx, cards: [pile[topIdx]] };
+        renderAll();
+      }
+    }
+
+    function clickTabCard(col, idx, e) {
+      e.stopPropagation();
+      const pile = G.tab[col];
+      const card = pile[idx];
+
+      if (!card.up) return; // can't select face-down
+
+      if (G.sel) {
+        // Try to place onto the card at idx (making it the destination)
+        const dst = pile.slice(0, idx + 1); // pile up to and including idx
+        const targetCard = pile[idx];
+        const bottomCard = G.sel.cards[0];
+
+        if (canOnTableau(bottomCard, dst)) {
+          removeSelected();
+          G.sel.cards.forEach(c => { c.up = true; pile.push(c); });
+          countMoves();
+          clearSel();
+        } else {
+          // Select this card stack instead
+          G.sel = { src: 'tab', col, idx, cards: pile.slice(idx) };
+          renderAll();
+        }
+        return;
+      }
+
+      // Select this card and all face-up below it
+      G.sel = { src: 'tab', col, idx, cards: pile.slice(idx) };
+      renderAll();
+    }
+
+    function removeSelected() {
+      if (G.sel.src === 'waste') {
+        G.waste.pop();
+      } else if (G.sel.src === 'found') {
+        G.found[G.sel.fi].pop();
+      } else {
+        const col = G.tab[G.sel.col];
+        col.splice(G.sel.idx); // remove from idx onward
+        if (col.length && !col[col.length - 1].up) col[col.length - 1].up = true;
+      }
+    }
+
+    // ── Win check ─────────────────────────────────────
+    function checkWin() {
+      const won = G.found.every(f => f.length === 13);
+      if (!won) return;
+      clearInterval(timerID);
+      const m = Math.floor(secs / 60), s = secs % 60;
+      const timeStr = m + ':' + String(s).padStart(2,'0');
+      document.getElementById('winMoves').textContent = moves;
+      document.getElementById('winTime').textContent = timeStr;
+
+      const scores = JSON.parse(localStorage.getItem('pcp_lb_solitaire') || '[]');
+      scores.push({ name: pName, score: moves, date: new Date().toLocaleDateString() });
+      scores.sort((a, b) => a.score - b.score);
+      scores.splice(10);
+      localStorage.setItem('pcp_lb_solitaire', JSON.stringify(scores));
+      const rank = scores.findIndex(s => s.name === pName && s.score === moves) + 1;
+      const medals = ['🥇 #1', '🥈 #2', '🥉 #3'];
+      document.getElementById('winRank').textContent = rank <= 3 ? medals[rank-1] + ' on the leaderboard!' : 'Score saved to leaderboard!';
+
+      setTimeout(() => document.getElementById('winModal').classList.add('open'), 400);
+    }
+
+    // ── Render ────────────────────────────────────────
+    function renderAll() {
+      renderStock();
+      renderWaste();
+      renderFoundations();
+      renderTableau();
+    }
+
+    function renderStock() {
+      const el = document.getElementById('stock-el');
+      if (G.stock.length) {
+        el.innerHTML = `<div class="card-el" style="width:var(--cw);height:var(--ch);cursor:pointer" onclick="clickStock()"><img src="cards/back.jpg" style="width:100%;height:100%;object-fit:cover"></div>`;
+        el.className = '';
+        el.style.border = 'none';
+        el.style.background = 'none';
+      } else {
+        el.innerHTML = '🔄';
+        el.className = 'card-slot';
+      }
+    }
+
+    function renderWaste() {
+      const el = document.getElementById('waste-el');
+      const isSel = G.sel && G.sel.src === 'waste';
+      if (!G.waste.length) {
+        el.innerHTML = '';
+        el.className = 'card-slot';
+        return;
+      }
+      const card = G.waste[G.waste.length - 1];
+      el.className = '';
+      el.style.border = 'none';
+      el.style.background = 'none';
+      el.innerHTML = `<div class="card-el${isSel ? ' selected' : ''}" onclick="clickWaste()" style="width:var(--cw);height:var(--ch)"><img src="${card.img}" style="width:100%;height:100%;object-fit:cover"></div>`;
+    }
+
+    function renderFoundations() {
+      const syms = ['♣','♦','♥','♠'];
+      SUITS.forEach((s, fi) => {
+        const el = document.getElementById('f' + fi);
+        const pile = G.found[fi];
+        const isSel = G.sel && G.sel.src === 'found' && G.sel.fi === fi;
+        if (!pile.length) {
+          el.innerHTML = syms[fi];
+          el.className = 'card-slot foundation';
+          if (isSel) el.style.borderColor = '#f0c040';
+          else el.style.borderColor = '';
+        } else {
+          const card = pile[pile.length - 1];
+          el.className = '';
+          el.style.border = 'none';
+          el.style.background = 'none';
+          el.innerHTML = `<div class="card-el${isSel ? ' selected' : ''}" onclick="clickFoundation(${fi})" style="width:var(--cw);height:var(--ch)"><img src="${card.img}" style="width:100%;height:100%;object-fit:cover"></div>`;
+        }
+      });
+    }
+
+    function renderTableau() {
+      for (let col = 0; col < 7; col++) {
+        const wrap = document.getElementById('col-' + col);
+        const pile = G.tab[col];
+        wrap.innerHTML = '';
+
+        if (!pile.length) {
+          wrap.style.height = 'var(--ch)';
+          const slot = document.createElement('div');
+          slot.className = 'card-slot';
+          slot.style.width = 'var(--cw)';
+          slot.style.height = 'var(--ch)';
+          slot.onclick = e => { e.stopPropagation(); clickCol(col); };
+          wrap.appendChild(slot);
+          continue;
+        }
+
+        let y = 0;
+        pile.forEach((card, idx) => {
+          const isLast = idx === pile.length - 1;
+          const isSel = G.sel && G.sel.src === 'tab' && G.sel.col === col && idx >= G.sel.idx;
+
+          const div = document.createElement('div');
+          div.className = 'card-el' + (!card.up ? ' face-down' : '') + (isSel ? ' selected' : '');
+          div.style.cssText = `position:absolute;top:${y}px;left:0;width:var(--cw);height:var(--ch);z-index:${idx}`;
+
+          if (card.up) {
+            div.innerHTML = `<img src="${card.img}" style="width:100%;height:100%;object-fit:cover">`;
+            div.addEventListener('click', e => clickTabCard(col, idx, e));
+            y += isLast ? 0 : 22;
+          } else {
+            div.innerHTML = `<img src="cards/back.jpg" style="width:100%;height:100%;object-fit:cover">`;
+            y += isLast ? 0 : 14;
+          }
+
+          wrap.appendChild(div);
+        });
+
+        wrap.style.height = (y + 67) + 'px';
+      }
+    }
+
+    function openInfo() { document.getElementById('infoModal').classList.add('open'); }
+
+    newGame();
+  </script>
+</body>
+</html>

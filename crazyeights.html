@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Crazy Eights – P's Card Play</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { background: radial-gradient(ellipse at 50% 30%, #2d7a50 0%, #1b4d35 65%, #0f2d1f 100%); min-height: 100vh; font-family: 'Segoe UI', system-ui, sans-serif; }
+    .gold { color: #f0c040; }
+    .glass { background: rgba(0,0,0,0.35); border: 1px solid rgba(255,215,0,0.2); }
+    .btn-gold { background: linear-gradient(135deg, #b8860b, #f0c040, #b8860b); color: #1a1000; font-weight: 700; transition: all 0.2s; box-shadow: 0 4px 12px rgba(240,192,64,0.3); cursor: pointer; }
+    .btn-gold:hover { filter: brightness(1.1); transform: translateY(-1px); }
+    .btn-gold:active { transform: translateY(0); }
+    .btn-outline { background: rgba(0,0,0,0.3); border: 2px solid rgba(240,192,64,0.4); color: #f0c040; font-weight: 600; transition: all 0.2s; cursor: pointer; }
+    .btn-outline:hover { background: rgba(240,192,64,0.1); border-color: #f0c040; }
+
+    /* Cards */
+    .card-img { width: 52px; height: 73px; border-radius: 5px; object-fit: cover; box-shadow: 0 2px 6px rgba(0,0,0,0.5); display: inline-block; cursor: pointer; transition: transform 0.15s, box-shadow 0.15s; flex-shrink: 0; }
+    .card-img:hover { transform: translateY(-6px); box-shadow: 0 8px 16px rgba(0,0,0,0.6); }
+    .card-img.selected { transform: translateY(-10px); box-shadow: 0 0 0 3px #f0c040, 0 10px 20px rgba(0,0,0,0.6); }
+    .card-img.unplayable { opacity: 0.45; cursor: default; }
+    .card-img.unplayable:hover { transform: none; box-shadow: 0 2px 6px rgba(0,0,0,0.5); }
+
+    /* Pile + deck area */
+    #discardPile { width: 52px; height: 73px; border-radius: 5px; box-shadow: 0 4px 12px rgba(0,0,0,0.6); }
+    #deckImg { width: 52px; height: 73px; border-radius: 5px; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.6); transition: transform 0.15s; }
+    #deckImg:hover { transform: scale(1.05); }
+    #deckImg.disabled { opacity: 0.4; cursor: default; }
+    #deckImg.disabled:hover { transform: none; }
+
+    /* Suit picker */
+    #suitPicker { display: none; }
+    #suitPicker.active { display: flex; }
+    .suit-btn { font-size: 2rem; cursor: pointer; padding: 10px 14px; border-radius: 12px; background: rgba(0,0,0,0.4); border: 2px solid rgba(240,192,64,0.3); transition: all 0.15s; }
+    .suit-btn:hover { background: rgba(240,192,64,0.15); border-color: #f0c040; transform: scale(1.15); }
+
+    /* CPU hand display */
+    .cpu-card-back { width: 40px; height: 56px; border-radius: 4px; background: #1a4a2e; border: 2px solid rgba(240,192,64,0.3); display: inline-block; flex-shrink: 0; }
+
+    /* Modal */
+    #infoModal { display: none; position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; }
+    #infoModal.active { display: flex; }
+    .modal-box { background: #1b4d35; border: 2px solid rgba(240,192,64,0.4); border-radius: 20px; padding: 28px; max-width: 420px; width: 90%; max-height: 80vh; overflow-y: auto; }
+  </style>
+</head>
+<body>
+  <!-- Info Modal -->
+  <div id="infoModal" onclick="closeModal(event)">
+    <div class="modal-box">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-bold gold">Crazy Eights — How to Play</h2>
+        <button onclick="document.getElementById('infoModal').classList.remove('active')" class="text-yellow-400 text-2xl leading-none">&times;</button>
+      </div>
+      <div class="text-green-100 text-sm space-y-3">
+        <p><strong class="text-yellow-400">Goal:</strong> Be the first to empty your hand.</p>
+        <p><strong class="text-yellow-400">Playing a card:</strong> You may play a card that matches the top discard's <em>suit</em> or <em>rank</em>.</p>
+        <p><strong class="text-yellow-400">Eights are wild:</strong> An 8 can be played at any time. After playing an 8, choose the new suit for the next player to match.</p>
+        <p><strong class="text-yellow-400">Drawing:</strong> If you have no playable card, draw from the deck. You may draw as many times as needed until you get something playable or the deck runs out.</p>
+        <p><strong class="text-yellow-400">Empty deck:</strong> When the deck is empty and you can't play, your turn passes.</p>
+        <p><strong class="text-yellow-400">Winning:</strong> Empty your hand to win! Your score for the leaderboard is your cumulative win count.</p>
+        <p><strong class="text-yellow-400">CPU strategy:</strong> The CPU prefers to match rank, then suit, plays eights as a last resort, and picks the suit it holds the most of.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="max-w-xl mx-auto px-4 py-8">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-6">
+      <a href="index.html" class="btn-outline px-4 py-2 rounded-xl text-sm">← Hub</a>
+      <h1 class="text-3xl font-black gold" style="text-shadow:0 0 20px rgba(240,192,64,.3)">Crazy Eights</h1>
+      <button onclick="document.getElementById('infoModal').classList.add('active')"
+              class="w-9 h-9 rounded-full border-2 border-yellow-400 text-yellow-400 font-bold text-base flex items-center justify-center hover:bg-yellow-400 hover:text-black transition-all">i</button>
+    </div>
+
+    <!-- Status bar -->
+    <div class="glass rounded-xl px-4 py-2 mb-4 flex items-center justify-between text-sm">
+      <span class="text-green-300">Wins: <span id="winCount" class="text-yellow-400 font-bold">0</span></span>
+      <span id="statusMsg" class="text-white font-semibold text-center flex-1 mx-4">Start a new game</span>
+      <span class="text-green-300">CPU hand: <span id="cpuCount" class="text-yellow-400 font-bold">0</span></span>
+    </div>
+
+    <!-- CPU hand -->
+    <div class="glass rounded-xl p-3 mb-4">
+      <p class="text-xs text-green-400 mb-2">CPU's Hand</p>
+      <div id="cpuHand" class="flex flex-wrap gap-1"></div>
+    </div>
+
+    <!-- Play area -->
+    <div class="glass rounded-xl p-4 mb-4">
+      <div class="flex items-center justify-center gap-8">
+        <!-- Deck -->
+        <div class="text-center">
+          <p class="text-xs text-green-400 mb-1">Deck (<span id="deckCount">0</span>)</p>
+          <img id="deckImg" src="cards/back.jpg" alt="Draw" onclick="playerDraw()" class="card-img" style="cursor:pointer;">
+        </div>
+        <!-- Discard -->
+        <div class="text-center">
+          <p class="text-xs text-green-400 mb-1">Discard</p>
+          <img id="discardPile" src="cards/back.jpg" alt="Discard pile">
+          <p id="currentSuit" class="text-xs text-yellow-400 mt-1 font-bold"></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Suit picker (shows after playing an 8) -->
+    <div id="suitPicker" class="glass rounded-xl p-4 mb-4 flex-col items-center gap-3">
+      <p class="text-yellow-400 font-bold text-sm">Choose a suit for the next player:</p>
+      <div class="flex gap-3 justify-center">
+        <button class="suit-btn" onclick="chooseSuit('spades')" title="Spades">♠</button>
+        <button class="suit-btn" onclick="chooseSuit('hearts')" title="Hearts">♥</button>
+        <button class="suit-btn" onclick="chooseSuit('clovers')" title="Clubs">♣</button>
+        <button class="suit-btn" onclick="chooseSuit('diamonds')" title="Diamonds">♦</button>
+      </div>
+    </div>
+
+    <!-- Player hand -->
+    <div class="glass rounded-xl p-3 mb-4">
+      <p class="text-xs text-green-400 mb-2">Your Hand — click a card to play it</p>
+      <div id="playerHand" class="flex flex-wrap gap-1.5"></div>
+    </div>
+
+    <!-- New game button -->
+    <div class="text-center">
+      <button onclick="newGame()" class="btn-gold px-8 py-3 rounded-xl text-base">New Game</button>
+    </div>
+
+  </div>
+
+  <script>
+    const SUITS = ['spades', 'hearts', 'clovers', 'diamonds'];
+    const VALUES = ['2','3','4','5','6','7','8','9','10','jack','queen','king','ace'];
+    const SUIT_SYMBOLS = { spades: '♠', hearts: '♥', clovers: '♣', diamonds: '♦' };
+
+    const playerName = localStorage.getItem('pcp_name') || 'Player';
+
+    let G = {};
+
+    function buildDeck() {
+      const d = [];
+      for (const s of SUITS) for (const v of VALUES) d.push({ suit: s, val: v });
+      for (let i = d.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [d[i], d[j]] = [d[j], d[i]];
+      }
+      return d;
+    }
+
+    function cardImg(c) {
+      return `cards/${c.suit}/${c.val}.jpg`;
+    }
+
+    function newGame() {
+      const deck = buildDeck();
+      const playerHand = deck.splice(0, 7);
+      const cpuHand = deck.splice(0, 7);
+      // First discard must not be an 8
+      let startIdx = deck.findIndex(c => c.val !== '8');
+      if (startIdx < 0) startIdx = 0;
+      const [startCard] = deck.splice(startIdx, 1);
+
+      G = {
+        deck,
+        playerHand,
+        cpuHand,
+        discard: [startCard],
+        activeSuit: startCard.suit,
+        playerTurn: true,
+        gameOver: false,
+        wins: G.wins || 0,
+        awaitingSuit: false,
+      };
+
+      hideSuitPicker();
+      render();
+      setStatus('Your turn!');
+    }
+
+    function topDiscard() { return G.discard[G.discard.length - 1]; }
+
+    function canPlay(card) {
+      if (G.awaitingSuit) return false;
+      if (card.val === '8') return true;
+      const top = topDiscard();
+      return card.suit === G.activeSuit || card.val === top.val;
+    }
+
+    function render() {
+      // Deck
+      document.getElementById('deckCount').textContent = G.deck.length;
+      const deckEl = document.getElementById('deckImg');
+      if (G.deck.length === 0) {
+        deckEl.classList.add('disabled');
+      } else {
+        deckEl.classList.remove('disabled');
+      }
+
+      // Discard
+      const top = topDiscard();
+      document.getElementById('discardPile').src = cardImg(top);
+      document.getElementById('currentSuit').textContent = G.awaitingSuit ? '' : SUIT_SYMBOLS[G.activeSuit] + ' ' + G.activeSuit;
+
+      // CPU hand (face-down backs)
+      document.getElementById('cpuCount').textContent = G.cpuHand.length;
+      const cpuEl = document.getElementById('cpuHand');
+      cpuEl.innerHTML = G.cpuHand.map(() =>
+        `<div class="cpu-card-back"></div>`
+      ).join('');
+
+      // Player hand
+      const ph = document.getElementById('playerHand');
+      if (G.gameOver || !G.playerTurn || G.awaitingSuit) {
+        ph.innerHTML = G.playerHand.map(c =>
+          `<img src="${cardImg(c)}" class="card-img unplayable">`
+        ).join('');
+      } else {
+        ph.innerHTML = G.playerHand.map((c, i) => {
+          const playable = canPlay(c);
+          return `<img src="${cardImg(c)}" class="card-img${playable ? '' : ' unplayable'}" onclick="${playable ? `playerPlay(${i})` : ''}">`;
+        }).join('');
+      }
+
+      // Win count
+      document.getElementById('winCount').textContent = G.wins;
+    }
+
+    function setStatus(msg) {
+      document.getElementById('statusMsg').textContent = msg;
+    }
+
+    function playerPlay(idx) {
+      if (!G.playerTurn || G.gameOver || G.awaitingSuit) return;
+      const card = G.playerHand[idx];
+      if (!canPlay(card)) return;
+
+      G.playerHand.splice(idx, 1);
+      G.discard.push(card);
+
+      if (card.val === '8') {
+        G.awaitingSuit = true;
+        showSuitPicker();
+        render();
+        setStatus('Choose a suit!');
+        return;
+      }
+
+      G.activeSuit = card.suit;
+
+      if (G.playerHand.length === 0) {
+        playerWins();
+        return;
+      }
+
+      G.playerTurn = false;
+      render();
+      setStatus('CPU is thinking…');
+      setTimeout(cpuTurn, 900);
+    }
+
+    function showSuitPicker() {
+      document.getElementById('suitPicker').classList.add('active');
+    }
+    function hideSuitPicker() {
+      document.getElementById('suitPicker').classList.remove('active');
+    }
+
+    function chooseSuit(suit) {
+      G.activeSuit = suit;
+      G.awaitingSuit = false;
+      hideSuitPicker();
+
+      if (G.playerHand.length === 0) {
+        playerWins();
+        return;
+      }
+
+      G.playerTurn = false;
+      render();
+      setStatus('CPU is thinking…');
+      setTimeout(cpuTurn, 900);
+    }
+
+    function playerDraw() {
+      if (!G.playerTurn || G.gameOver || G.awaitingSuit) return;
+      if (G.deck.length === 0) {
+        setStatus("Deck is empty — can't draw!");
+        return;
+      }
+      const card = G.deck.pop();
+      G.playerHand.push(card);
+      render();
+      if (canPlay(card)) {
+        setStatus(`Drew ${card.val} of ${card.suit} — you can play it!`);
+      } else {
+        setStatus(`Drew ${card.val} of ${card.suit}. Keep drawing or wait.`);
+      }
+    }
+
+    function cpuTurn() {
+      if (G.gameOver) return;
+
+      // Find playable cards, prefer rank matches, then suit matches, eights last
+      const playable = G.cpuHand
+        .map((c, i) => ({ c, i }))
+        .filter(({ c }) => {
+          if (c.val === '8') return true;
+          const top = topDiscard();
+          return c.suit === G.activeSuit || c.val === top.val;
+        })
+        .sort((a, b) => {
+          // Prefer rank match over suit match, eights last
+          const top = topDiscard();
+          const scoreCard = (c) => {
+            if (c.val === '8') return 0;
+            if (c.val === top.val) return 2;
+            return 1;
+          };
+          return scoreCard(b.c) - scoreCard(a.c);
+        });
+
+      if (playable.length > 0) {
+        const { c, i } = playable[0];
+        G.cpuHand.splice(i, 1);
+        G.discard.push(c);
+
+        if (c.val === '8') {
+          // CPU picks the suit it holds the most of
+          const suitCounts = {};
+          for (const s of SUITS) suitCounts[s] = 0;
+          for (const card of G.cpuHand) suitCounts[card.suit]++;
+          G.activeSuit = SUITS.reduce((best, s) => suitCounts[s] > suitCounts[best] ? s : best, SUITS[0]);
+          setStatus(`CPU played an 8 and chose ${SUIT_SYMBOLS[G.activeSuit]} ${G.activeSuit}!`);
+        } else {
+          G.activeSuit = c.suit;
+          setStatus(`CPU played ${c.val} of ${c.suit}.`);
+        }
+
+        if (G.cpuHand.length === 0) {
+          cpuWins();
+          return;
+        }
+
+        G.playerTurn = true;
+        render();
+        setStatus(document.getElementById('statusMsg').textContent + ' Your turn!');
+      } else {
+        // CPU draws until playable or deck empty
+        let drew = 0;
+        while (G.deck.length > 0) {
+          const card = G.deck.pop();
+          G.cpuHand.push(card);
+          drew++;
+          if (card.val === '8' || card.suit === G.activeSuit || card.val === topDiscard().val) {
+            // Play it on next cycle
+            setTimeout(cpuTurn, 600);
+            render();
+            setStatus(`CPU drew ${drew} card${drew > 1 ? 's' : ''}…`);
+            return;
+          }
+        }
+        // Deck empty, can't play
+        G.playerTurn = true;
+        render();
+        setStatus(`CPU drew ${drew} card${drew !== 1 ? 's' : ''} but couldn't play. Your turn!`);
+      }
+    }
+
+    function playerWins() {
+      G.gameOver = true;
+      G.wins++;
+      render();
+      setStatus(`You won! 🎉 Total wins: ${G.wins}`);
+      saveScore();
+    }
+
+    function cpuWins() {
+      G.gameOver = true;
+      render();
+      setStatus('CPU emptied its hand — you lose this round!');
+    }
+
+    function saveScore() {
+      const key = 'pcp_lb_crazyeights';
+      const scores = JSON.parse(localStorage.getItem(key) || '[]');
+      const existing = scores.findIndex(s => s.name === playerName);
+      const today = new Date().toLocaleDateString();
+      if (existing >= 0) {
+        if (G.wins > scores[existing].score) {
+          scores[existing] = { name: playerName, score: G.wins, date: today };
+        }
+      } else {
+        scores.push({ name: playerName, score: G.wins, date: today });
+      }
+      scores.sort((a, b) => b.score - a.score);
+      localStorage.setItem(key, JSON.stringify(scores.slice(0, 10)));
+    }
+
+    function closeModal(e) {
+      if (e.target === document.getElementById('infoModal')) {
+        document.getElementById('infoModal').classList.remove('active');
+      }
+    }
+
+    newGame();
+  </script>
+</body>
+</html>

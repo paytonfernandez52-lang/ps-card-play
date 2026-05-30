@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>About — P's Card Play</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { background: radial-gradient(ellipse at 50% 30%, #2d7a50 0%, #1b4d35 65%, #0f2d1f 100%); min-height: 100vh; font-family: 'Segoe UI', system-ui, sans-serif; }
+    .gold { color: #f0c040; }
+    .glass { background: rgba(0,0,0,0.35); border: 1px solid rgba(255,215,0,0.2); }
+    .btn-gold { background: linear-gradient(135deg, #b8860b, #f0c040, #b8860b); color: #1a1000; font-weight: 700; transition: all 0.2s; box-shadow: 0 4px 12px rgba(240,192,64,0.3); }
+    .btn-gold:hover { filter: brightness(1.1); transform: translateY(-1px); }
+    .btn-gold:active { transform: translateY(0); }
+    .section-title { color: #f0c040; font-size: 1.1rem; font-weight: 700; margin-bottom: 0.5rem; }
+    p { color: rgba(255,255,255,0.8); line-height: 1.7; margin-bottom: 1rem; font-size: 0.95rem; }
+  </style>
+</head>
+<body>
+  <div class="max-w-lg mx-auto px-4 py-10">
+
+    <header class="text-center mb-8">
+      <div class="text-3xl mb-2 tracking-widest" style="color:#f0c040;opacity:.8">♠ ♥ ♣ ♦</div>
+      <h1 class="text-5xl font-black gold" style="letter-spacing:-1px;text-shadow:0 0 24px rgba(240,192,64,.35)">P's Card Play</h1>
+      <p class="text-green-300 mt-2 text-sm opacity-70">Classic card games, anytime</p>
+    </header>
+
+    <div class="glass rounded-2xl p-6 mb-5">
+      <h2 class="text-2xl font-black gold mb-4">About</h2>
+
+      <div class="section-title">What is P's Card Play?</div>
+      <p>P's Card Play is a free, browser-based card game hub featuring 10 classic games — no downloads, no accounts, no paywalls. Just pick a game and play.</p>
+
+      <div class="section-title">The Games</div>
+      <p>We offer Memory Match, War, Texas Hold'em, Solitaire, Blackjack, Go Fish, Baccarat, Crazy Eights, Gin Rummy, and 5-Card Draw. Every game runs entirely in your browser and works on desktop and mobile.</p>
+
+      <div class="section-title">Leaderboards</div>
+      <p>Scores are saved locally on your device. Enter your name on the home page to track your best performances across all 10 games and compete with yourself over time.</p>
+
+      <div class="section-title">Privacy</div>
+      <p>We don't collect any personal data. All scores and your name are stored only on your device using your browser's local storage. See our <a href="privacy.html" class="gold underline">Privacy Policy</a> for full details.</p>
+
+      <div class="section-title">Contact</div>
+      <p>Have feedback or found a bug? Reach out at <a href="mailto:paytonfernandez52@gmail.com" class="gold underline">paytonfernandez52@gmail.com</a>.</p>
+    </div>
+
+    <div class="text-center">
+      <button onclick="window.location.href='index.html'" class="btn-gold px-8 py-3 rounded-xl text-base">← Back to Games</button>
+    </div>
+
+    <p class="text-center text-xs mt-6" style="color:rgba(255,255,255,.18)">© 2026 P's Card Play</p>
+  </div>
+</body>
+</html>

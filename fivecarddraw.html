@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>5-Card Draw – P's Card Play</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { background: radial-gradient(ellipse at 50% 30%, #2d7a50 0%, #1b4d35 65%, #0f2d1f 100%); min-height: 100vh; font-family: 'Segoe UI', system-ui, sans-serif; }
+    .gold { color: #f0c040; }
+    .glass { background: rgba(0,0,0,0.35); border: 1px solid rgba(255,215,0,0.2); }
+    .btn-gold { background: linear-gradient(135deg, #b8860b, #f0c040, #b8860b); color: #1a1000; font-weight: 700; transition: all 0.2s; box-shadow: 0 4px 12px rgba(240,192,64,0.3); cursor: pointer; }
+    .btn-gold:hover { filter: brightness(1.1); transform: translateY(-1px); }
+    .btn-gold:active { transform: translateY(0); }
+    .btn-outline { background: rgba(0,0,0,0.3); border: 2px solid rgba(240,192,64,0.4); color: #f0c040; font-weight: 600; transition: all 0.2s; cursor: pointer; }
+    .btn-outline:hover { background: rgba(240,192,64,0.1); border-color: #f0c040; }
+    .chip-btn { border-radius: 50%; width: 52px; height: 52px; font-weight: 800; font-size: 0.75rem; cursor: pointer; border: 3px solid rgba(0,0,0,0.3); transition: all 0.15s; box-shadow: 0 3px 8px rgba(0,0,0,0.4); }
+    .chip-btn:hover { transform: translateY(-2px) scale(1.08); }
+    .chip-btn:active { transform: translateY(0); }
+
+    .card-img { width: 60px; height: 84px; border-radius: 6px; object-fit: cover; box-shadow: 0 3px 8px rgba(0,0,0,0.5); display: inline-block; cursor: pointer; transition: transform 0.15s, box-shadow 0.15s; flex-shrink: 0; }
+    .card-img:hover { transform: translateY(-5px); }
+    .card-img.held { transform: translateY(-14px); box-shadow: 0 0 0 3px #f0c040, 0 14px 24px rgba(0,0,0,0.6); }
+    .card-img.cpu-reveal { box-shadow: 0 3px 8px rgba(0,0,0,0.5); cursor: default; }
+    .hold-label { font-size: 0.65rem; font-weight: 700; color: #f0c040; text-align: center; margin-top: 2px; height: 14px; }
+
+    #infoModal { display: none; position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; }
+    #infoModal.active { display: flex; }
+    .modal-box { background: #1b4d35; border: 2px solid rgba(240,192,64,0.4); border-radius: 20px; padding: 28px; max-width: 440px; width: 90%; max-height: 82vh; overflow-y: auto; }
+  </style>
+</head>
+<body>
+
+  <!-- Info Modal -->
+  <div id="infoModal" onclick="if(event.target===this)this.classList.remove('active')">
+    <div class="modal-box">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-bold gold">5-Card Draw — How to Play</h2>
+        <button onclick="document.getElementById('infoModal').classList.remove('active')" class="text-yellow-400 text-2xl leading-none">&times;</button>
+      </div>
+      <div class="text-green-100 text-sm space-y-3">
+        <p><strong class="text-yellow-400">Goal:</strong> Make the best 5-card poker hand and win the pot.</p>
+        <p><strong class="text-yellow-400">Blinds:</strong> You post the small blind, CPU posts the big blind (or vice versa based on dealer button).</p>
+        <p><strong class="text-yellow-400">Pre-draw betting:</strong> After cards are dealt, a round of betting takes place.</p>
+        <p><strong class="text-yellow-400">The Draw:</strong> Click cards to toggle Hold/Discard, then press Draw to replace the discards (up to 5).</p>
+        <p><strong class="text-yellow-400">Post-draw betting:</strong> A final betting round before showdown.</p>
+        <p><strong class="text-yellow-400">Showdown:</strong> Best hand wins the pot. Hands ranked (highest to lowest): Royal Flush, Straight Flush, Four of a Kind, Full House, Flush, Straight, Three of a Kind, Two Pair, One Pair, High Card.</p>
+        <p><strong class="text-yellow-400">Starting chips:</strong> $500. Leaderboard records your highest chip total.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="max-w-xl mx-auto px-4 py-8">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-5">
+      <a href="index.html" class="btn-outline px-4 py-2 rounded-xl text-sm">← Hub</a>
+      <h1 class="text-3xl font-black gold" style="text-shadow:0 0 20px rgba(240,192,64,.3)">5-Card Draw</h1>
+      <button onclick="document.getElementById('infoModal').classList.add('active')"
+              class="w-9 h-9 rounded-full border-2 border-yellow-400 text-yellow-400 font-bold text-base flex items-center justify-center hover:bg-yellow-400 hover:text-black transition-all">i</button>
+    </div>
+
+    <!-- Chips & pot -->
+    <div class="glass rounded-xl px-4 py-3 mb-4 flex items-center justify-between text-sm">
+      <span class="text-green-300">Your chips: <span id="playerChips" class="text-yellow-400 font-bold text-base">$500</span></span>
+      <span id="potDisplay" class="text-white font-bold">Pot: $0</span>
+      <span class="text-green-300">CPU chips: <span id="cpuChips" class="text-yellow-400 font-bold text-base">$500</span></span>
+    </div>
+
+    <!-- Status -->
+    <div class="glass rounded-xl px-4 py-2 mb-4 text-center">
+      <span id="statusMsg" class="text-white font-semibold text-sm">Press Deal to start</span>
+    </div>
+
+    <!-- CPU hand -->
+    <div class="glass rounded-xl p-3 mb-4">
+      <p class="text-xs text-green-400 mb-2">CPU's Hand</p>
+      <div id="cpuHand" class="flex gap-2 justify-center flex-wrap"></div>
+      <p id="cpuHandName" class="text-center text-xs text-yellow-400 mt-2 font-bold"></p>
+    </div>
+
+    <!-- Bet controls -->
+    <div id="betZone" class="glass rounded-xl p-4 mb-4 hidden">
+      <p class="text-xs text-green-400 mb-3">Place your bet — Current bet to call: <span id="callAmt" class="text-yellow-400 font-bold">$0</span></p>
+      <div class="flex gap-2 flex-wrap justify-center mb-3">
+        <button onclick="playerFold()" class="btn-outline px-4 py-2 rounded-lg text-sm">Fold</button>
+        <button id="btnCheck" onclick="playerCheck()" class="btn-outline px-4 py-2 rounded-lg text-sm">Check</button>
+        <button id="btnCall" onclick="playerCall()" class="btn-outline px-4 py-2 rounded-lg text-sm">Call</button>
+        <button onclick="playerRaise(20)" class="btn-gold px-4 py-2 rounded-lg text-sm">Raise $20</button>
+        <button onclick="playerRaise(50)" class="btn-gold px-4 py-2 rounded-lg text-sm">Raise $50</button>
+        <button onclick="playerAllIn()" class="btn-gold px-4 py-2 rounded-lg text-sm">All-In</button>
+      </div>
+    </div>
+
+    <!-- Player hand + hold controls -->
+    <div class="glass rounded-xl p-3 mb-4">
+      <p class="text-xs text-green-400 mb-2" id="handHint">Your Hand</p>
+      <div id="playerHand" class="flex gap-2 justify-center flex-wrap"></div>
+      <p id="playerHandName" class="text-center text-xs text-green-300 mt-2"></p>
+    </div>
+
+    <!-- Draw button (shown during draw phase) -->
+    <div id="drawZone" class="text-center mb-4 hidden">
+      <button onclick="executeDrawPhase()" class="btn-gold px-8 py-3 rounded-xl text-base">Draw Replacements</button>
+    </div>
+
+    <!-- Chip betting buttons & deal -->
+    <div id="chipZone" class="text-center mb-4">
+      <button onclick="dealHand()" class="btn-gold px-10 py-3 rounded-xl text-lg">Deal</button>
+    </div>
+
+  </div>
+
+  <script>
+    const SUITS = ['spades','hearts','clovers','diamonds'];
+    const VALUES = ['2','3','4','5','6','7','8','9','10','jack','queen','king','ace'];
+    const RANK_POW = {};
+    VALUES.forEach((v, i) => RANK_POW[v] = i + 2);
+
+    const playerName = localStorage.getItem('pcp_name') || 'Player';
+
+    let G = {
+      deck: [],
+      playerHand: [], cpuHand: [],
+      held: [],
+      playerChips: 500, cpuChips: 500,
+      pot: 0, playerBet: 0, cpuBet: 0,
+      phase: 'idle', // idle | prebet | draw | postbet | showdown
+      dealer: 0, // 0=player, 1=cpu
+      currentBet: 0, // amount to call
+    };
+
+    function buildDeck() {
+      const d = [];
+      for (const s of SUITS) for (const v of VALUES) d.push({ suit: s, val: v });
+      for (let i = d.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [d[i], d[j]] = [d[j], d[i]];
+      }
+      return d;
+    }
+
+    function cardImg(c) { return `cards/${c.suit}/${c.val}.jpg`; }
+
+    function setStatus(msg) { document.getElementById('statusMsg').textContent = msg; }
+
+    // --- Hand evaluation (reuse Texas Hold'em pattern) ---
+    function evalFive(hand) {
+      const pow = hand.map(c => RANK_POW[c.val]).sort((a,b) => b-a);
+      const suits = hand.map(c => c.suit);
+      const isFlush = suits.every(s => s === suits[0]);
+      const isStraight = (() => {
+        if (pow[0] - pow[4] === 4 && new Set(pow).size === 5) return true;
+        if (JSON.stringify(pow) === JSON.stringify([14,5,4,3,2])) return true; // wheel
+        return false;
+      })();
+      const counts = {};
+      for (const p of pow) counts[p] = (counts[p] || 0) + 1;
+      const groups = Object.entries(counts).map(([v,c]) => [+v,c]).sort((a,b) => b[1]-a[1] || b[0]-a[0]);
+      const g = groups.map(x => x[1]);
+
+      let r, tb;
+      if (isFlush && isStraight) { r = 8; tb = pow; }
+      else if (g[0] === 4) { r = 7; tb = groups.flat(); }
+      else if (g[0] === 3 && g[1] === 2) { r = 6; tb = groups.flat(); }
+      else if (isFlush) { r = 5; tb = pow; }
+      else if (isStraight) { r = 4; tb = pow; }
+      else if (g[0] === 3) { r = 3; tb = groups.flat(); }
+      else if (g[0] === 2 && g[1] === 2) { r = 2; tb = groups.flat(); }
+      else if (g[0] === 2) { r = 1; tb = groups.flat(); }
+      else { r = 0; tb = pow; }
+
+      const names = ['High Card','One Pair','Two Pair','Three of a Kind','Straight','Flush','Full House','Four of a Kind','Straight Flush'];
+      return { r, tb, name: names[r] };
+    }
+
+    function cmpH(a, b) {
+      if (a.r !== b.r) return a.r - b.r;
+      for (let i = 0; i < Math.min(a.tb.length, b.tb.length); i++) {
+        if (a.tb[i] !== b.tb[i]) return a.tb[i] - b.tb[i];
+      }
+      return 0;
+    }
+
+    function handName(hand) { return evalFive(hand).name; }
+
+    // --- Blinds & Deal ---
+    function dealHand() {
+      if (G.playerChips <= 0 || G.cpuChips <= 0) {
+        resetGame();
+        return;
+      }
+      G.deck = buildDeck();
+      G.playerHand = G.deck.splice(0, 5);
+      G.cpuHand = G.deck.splice(0, 5);
+      G.held = [false, false, false, false, false];
+      G.phase = 'prebet';
+      G.pot = 0; G.playerBet = 0; G.cpuBet = 0;
+
+      // Blinds: dealer posts SB, other posts BB (10/20)
+      const sbAmt = 10, bbAmt = 20;
+      if (G.dealer === 0) {
+        // Player = dealer = small blind; CPU = big blind
+        takeBet('player', sbAmt);
+        takeBet('cpu', bbAmt);
+        G.currentBet = bbAmt;
+      } else {
+        takeBet('cpu', sbAmt);
+        takeBet('player', bbAmt);
+        G.currentBet = bbAmt;
+      }
+
+      G.dealer = 1 - G.dealer;
+
+      document.getElementById('drawZone').classList.add('hidden');
+      document.getElementById('chipZone').classList.add('hidden');
+      document.getElementById('cpuHandName').textContent = '';
+      document.getElementById('playerHandName').textContent = '';
+
+      render();
+      setStatus('Blinds posted. Bet, call, or fold.');
+      showBetZone();
+      document.getElementById('handHint').textContent = 'Your Hand — betting round';
+    }
+
+    function takeBet(who, amt) {
+      amt = Math.min(amt, who === 'player' ? G.playerChips : G.cpuChips);
+      if (who === 'player') { G.playerChips -= amt; G.playerBet += amt; }
+      else { G.cpuChips -= amt; G.cpuBet += amt; }
+      G.pot += amt;
+    }
+
+    function showBetZone() {
+      document.getElementById('betZone').classList.remove('hidden');
+      const toCall = G.currentBet - G.playerBet;
+      document.getElementById('callAmt').textContent = '$' + toCall;
+      document.getElementById('btnCheck').style.display = toCall === 0 ? '' : 'none';
+      document.getElementById('btnCall').style.display = toCall > 0 ? '' : 'none';
+    }
+
+    function hideBetZone() { document.getElementById('betZone').classList.add('hidden'); }
+
+    // --- Player betting actions ---
+    function playerFold() {
+      hideBetZone();
+      G.cpuChips += G.pot;
+      setStatus('You folded. CPU wins the pot.');
+      G.phase = 'idle';
+      render();
+      endRound();
+    }
+
+    function playerCheck() {
+      if (G.currentBet > G.playerBet) { setStatus("Can't check — there's a bet to call!"); return; }
+      hideBetZone();
+      if (G.phase === 'prebet') {
+        cpuPreDraw(() => startDrawPhase());
+      } else {
+        cpuPostBet(() => resolveShowdown());
+      }
+    }
+
+    function playerCall() {
+      const toCall = G.currentBet - G.playerBet;
+      takeBet('player', toCall);
+      hideBetZone();
+      render();
+      if (G.phase === 'prebet') {
+        cpuPreDraw(() => startDrawPhase());
+      } else {
+        cpuPostBet(() => resolveShowdown());
+      }
+    }
+
+    function playerRaise(amount) {
+      const toCall = G.currentBet - G.playerBet;
+      takeBet('player', toCall + amount);
+      G.currentBet = G.playerBet;
+      render();
+      hideBetZone();
+      // CPU responds
+      setTimeout(() => {
+        if (G.phase === 'prebet') {
+          cpuPreDraw(() => startDrawPhase(), true);
+        } else {
+          cpuPostBet(() => resolveShowdown(), true);
+        }
+      }, 600);
+    }
+
+    function playerAllIn() {
+      const allIn = G.playerChips;
+      takeBet('player', allIn);
+      G.currentBet = Math.max(G.currentBet, G.playerBet);
+      render();
+      hideBetZone();
+      setTimeout(() => {
+        if (G.phase === 'prebet') {
+          cpuPreDraw(() => startDrawPhase(), true);
+        } else {
+          cpuPostBet(() => resolveShowdown(), true);
+        }
+      }, 600);
+    }
+
+    // --- CPU betting logic ---
+    function cpuStrength() {
+      const h = evalFive(G.cpuHand);
+      return h.r / 8; // 0–1
+    }
+
+    function cpuPreDraw(next, facingRaise = false) {
+      const strength = cpuStrength();
+      const toCall = G.currentBet - G.cpuBet;
+      setTimeout(() => {
+        if (facingRaise) {
+          if (strength > 0.5) {
+            takeBet('cpu', toCall);
+            setStatus('CPU calls.');
+          } else if (strength > 0.3 && Math.random() > 0.5) {
+            takeBet('cpu', toCall);
+            setStatus('CPU calls.');
+          } else {
+            G.playerChips += G.pot;
+            setStatus('CPU folds. You win the pot!');
+            G.phase = 'idle';
+            render();
+            endRound();
+            return;
+          }
+        } else if (strength > 0.6 && Math.random() > 0.4) {
+          const raise = Math.min(G.cpuChips, 30);
+          takeBet('cpu', toCall + raise);
+          G.currentBet = G.cpuBet;
+          setStatus(`CPU raises $${raise}. Call, raise, or fold.`);
+          render();
+          showBetZone();
+          return;
+        } else {
+          takeBet('cpu', toCall);
+        }
+        render();
+        next();
+      }, 700);
+    }
+
+    function cpuPostBet(next, facingRaise = false) {
+      const strength = cpuStrength();
+      const toCall = G.currentBet - G.cpuBet;
+      setTimeout(() => {
+        if (facingRaise) {
+          if (strength > 0.4) {
+            takeBet('cpu', toCall);
+            setStatus('CPU calls.');
+          } else {
+            G.playerChips += G.pot;
+            setStatus('CPU folds. You win the pot!');
+            G.phase = 'idle';
+            render();
+            endRound();
+            return;
+          }
+        } else if (strength > 0.55 && Math.random() > 0.5) {
+          const raise = Math.min(G.cpuChips, 30);
+          takeBet('cpu', toCall + raise);
+          G.currentBet = G.cpuBet;
+          setStatus(`CPU raises $${raise}. Call, raise, or fold.`);
+          render();
+          showBetZone();
+          return;
+        } else {
+          takeBet('cpu', toCall);
+        }
+        render();
+        next();
+      }, 700);
+    }
+
+    // --- Draw phase ---
+    function startDrawPhase() {
+      G.phase = 'draw';
+      G.held = [false, false, false, false, false];
+      render();
+      setStatus('Click cards to toggle Hold. Then press Draw.');
+      document.getElementById('drawZone').classList.remove('hidden');
+      document.getElementById('handHint').textContent = 'Your Hand — click to toggle Hold';
+    }
+
+    function toggleHold(idx) {
+      if (G.phase !== 'draw') return;
+      G.held[idx] = !G.held[idx];
+      render();
+    }
+
+    function executeDrawPhase() {
+      // Replace un-held player cards
+      for (let i = 0; i < 5; i++) {
+        if (!G.held[i] && G.deck.length > 0) {
+          G.playerHand[i] = G.deck.pop();
+        }
+      }
+      G.held = [false,false,false,false,false];
+
+      // CPU draw: keep cards that contribute to melds/pairs
+      const cpuKeep = cpuDecideDraw();
+      const newCpuHand = [];
+      for (let i = 0; i < 5; i++) {
+        newCpuHand.push(cpuKeep[i] ? G.cpuHand[i] : (G.deck.length > 0 ? G.deck.pop() : G.cpuHand[i]));
+      }
+      G.cpuHand = newCpuHand;
+
+      G.phase = 'postbet';
+      G.playerBet = 0; G.cpuBet = 0; G.currentBet = 0;
+      document.getElementById('drawZone').classList.add('hidden');
+      render();
+      setStatus('Draw complete. Betting round.');
+      showBetZone();
+      document.getElementById('handHint').textContent = 'Your Hand — post-draw';
+    }
+
+    function cpuDecideDraw() {
+      // Strategy: keep pairs/trips/straight/flush draws, discard the rest
+      const hand = G.cpuHand;
+      const counts = {};
+      for (const c of hand) counts[c.val] = (counts[c.val] || 0) + 1;
+      const suitCounts = {};
+      for (const c of hand) suitCounts[c.suit] = (suitCounts[c.suit] || 0) + 1;
+      const maxSuit = Math.max(...Object.values(suitCounts));
+      const keep = hand.map(c => {
+        if (counts[c.val] >= 2) return true; // pair/trips/quads
+        if (maxSuit >= 4 && suitCounts[c.suit] === maxSuit) return true; // flush draw
+        return false;
+      });
+      // If keeping nothing (all high cards), keep best two
+      if (!keep.some(k => k)) {
+        const sorted = hand.map((c, i) => [RANK_POW[c.val], i]).sort((a,b) => b[0]-a[0]);
+        keep[sorted[0][1]] = true;
+        keep[sorted[1][1]] = true;
+      }
+      return keep;
+    }
+
+    // --- Showdown ---
+    function resolveShowdown() {
+      G.phase = 'showdown';
+      const ph = evalFive(G.playerHand);
+      const ch = evalFive(G.cpuHand);
+      const cmp = cmpH(ph, ch);
+      let msg;
+      if (cmp > 0) {
+        G.playerChips += G.pot;
+        msg = `You win! ${ph.name} beats CPU's ${ch.name}.`;
+      } else if (cmp < 0) {
+        G.cpuChips += G.pot;
+        msg = `CPU wins with ${ch.name} over your ${ph.name}.`;
+      } else {
+        const half = Math.floor(G.pot / 2);
+        G.playerChips += half;
+        G.cpuChips += G.pot - half;
+        msg = `Split pot — both have ${ph.name}.`;
+      }
+      G.pot = 0;
+      render();
+      document.getElementById('cpuHandName').textContent = ch.name;
+      document.getElementById('playerHandName').textContent = ph.name;
+      setStatus(msg);
+      G.phase = 'idle';
+      endRound();
+    }
+
+    function endRound() {
+      document.getElementById('chipZone').classList.remove('hidden');
+      if (G.playerChips <= 0) {
+        setStatus('You\'re out of chips! Starting over.');
+        setTimeout(resetGame, 2000);
+      } else if (G.cpuChips <= 0) {
+        setStatus('CPU is out of chips — you win! 🎉');
+        saveScore();
+        setTimeout(resetGame, 2500);
+      } else {
+        saveScore();
+      }
+    }
+
+    function resetGame() {
+      G.playerChips = 500; G.cpuChips = 500;
+      G.pot = 0; G.phase = 'idle';
+      render();
+      setStatus('Press Deal to start.');
+    }
+
+    // --- Render ---
+    function render() {
+      document.getElementById('playerChips').textContent = '$' + G.playerChips;
+      document.getElementById('cpuChips').textContent = '$' + G.cpuChips;
+      document.getElementById('potDisplay').textContent = 'Pot: $' + G.pot;
+
+      // CPU hand
+      const cpuEl = document.getElementById('cpuHand');
+      if (G.phase === 'showdown' || G.phase === 'idle') {
+        cpuEl.innerHTML = G.cpuHand.map(c =>
+          `<img src="${cardImg(c)}" class="card-img cpu-reveal">`
+        ).join('');
+      } else {
+        cpuEl.innerHTML = G.cpuHand.map(() =>
+          `<img src="cards/back.jpg" class="card-img cpu-reveal">`
+        ).join('');
+      }
+
+      // Player hand
+      const ph = document.getElementById('playerHand');
+      if (G.phase === 'draw') {
+        ph.innerHTML = G.playerHand.map((c, i) => `
+          <div class="text-center">
+            <img src="${cardImg(c)}" class="card-img${G.held[i] ? ' held' : ''}" onclick="toggleHold(${i})">
+            <div class="hold-label">${G.held[i] ? 'HOLD' : ''}</div>
+          </div>
+        `).join('');
+      } else {
+        ph.innerHTML = G.playerHand.map(c =>
+          `<img src="${cardImg(c)}" class="card-img cpu-reveal">`
+        ).join('');
+      }
+
+      if (G.phase !== 'draw' && G.playerHand.length > 0) {
+        document.getElementById('playerHandName').textContent = handName(G.playerHand);
+      }
+    }
+
+    function saveScore() {
+      if (G.playerChips <= 500) return;
+      const key = 'pcp_lb_fivecarddraw';
+      const scores = JSON.parse(localStorage.getItem(key) || '[]');
+      const today = new Date().toLocaleDateString();
+      const existing = scores.findIndex(s => s.name === playerName);
+      if (existing >= 0) {
+        if (G.playerChips > scores[existing].score) scores[existing] = { name: playerName, score: G.playerChips, date: today };
+      } else {
+        scores.push({ name: playerName, score: G.playerChips, date: today });
+      }
+      scores.sort((a, b) => b.score - a.score);
+      localStorage.setItem(key, JSON.stringify(scores.slice(0, 10)));
+    }
+
+    render();
+    setStatus('Press Deal to start.');
+  </script>
+</body>
+</html>

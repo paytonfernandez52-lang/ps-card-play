@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Baccarat — P's Card Play</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { background: radial-gradient(ellipse at 50% 30%, #2d7a50 0%, #1b4d35 65%, #0f2d1f 100%); min-height: 100vh; font-family: 'Segoe UI', system-ui, sans-serif; }
+    .gold { color: #f0c040; }
+    .glass { background: rgba(0,0,0,0.35); border: 1px solid rgba(255,215,0,0.2); }
+    .btn-gold { background: linear-gradient(135deg,#b8860b,#f0c040,#b8860b); color:#1a1000; font-weight:700; transition:all .2s; }
+    .btn-gold:hover { filter:brightness(1.1); transform:translateY(-1px); }
+    .btn-gold:active { transform:translateY(0); }
+    button:disabled { opacity:.4; cursor:not-allowed; transform:none !important; filter:none !important; }
+    .info-btn { width:24px; height:24px; border-radius:50%; border:1.5px solid rgba(240,192,64,.55); color:#f0c040; font-size:13px; font-weight:700; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; background:rgba(240,192,64,.08); }
+    .info-btn:hover { background:rgba(240,192,64,.22); }
+    .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,.82); align-items:center; justify-content:center; z-index:50; padding:12px; }
+    .modal.open { display:flex; }
+    .info-section { margin-bottom:13px; }
+    .info-section h3 { color:#f0c040; font-weight:700; font-size:.78rem; text-transform:uppercase; letter-spacing:.05em; margin-bottom:5px; }
+    .info-row { display:flex; gap:7px; align-items:flex-start; margin-bottom:4px; font-size:.8rem; color:rgba(255,255,255,.85); line-height:1.4; }
+    .info-row span:first-child { color:#f0c040; flex-shrink:0; min-width:16px; }
+
+    /* Cards */
+    .card { width:62px; height:87px; border-radius:8px; overflow:hidden; border:2px solid rgba(255,255,255,.2); box-shadow:2px 4px 10px rgba(0,0,0,.5); background:#1c3878; flex-shrink:0; }
+    .card img { width:100%; height:100%; object-fit:cover; display:block; }
+
+    /* Bet zones */
+    .bet-zone { border:2px solid rgba(255,255,255,.15); border-radius:14px; background:rgba(0,0,0,.25); cursor:pointer; transition:all .2s; }
+    .bet-zone:hover { border-color:rgba(255,215,0,.4); background:rgba(0,0,0,.35); }
+    .bet-zone.active { border-color:#f0c040; background:rgba(240,192,64,.1); box-shadow:0 0 12px rgba(240,192,64,.25); }
+    .bet-zone.winner { border-color:#4ade80; background:rgba(74,222,128,.1); box-shadow:0 0 14px rgba(74,222,128,.3); }
+
+    /* Chip buttons */
+    .chip-btn { width:48px; height:48px; border-radius:50%; font-weight:800; font-size:.8rem; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all .18s; border:3px solid; flex-shrink:0; }
+    .chip-btn:hover { transform:scale(1.1) translateY(-2px); }
+    .chip-btn:active { transform:scale(.96); }
+
+    /* Score badge */
+    .score-badge { font-size:2rem; font-weight:900; line-height:1; }
+    .score-badge.natural { color:#f0c040; }
+
+    @keyframes dealIn { from{opacity:0;transform:translateY(-14px) scale(.85)} to{opacity:1;transform:translateY(0) scale(1)} }
+    .deal-in { animation:dealIn .28s ease; }
+    @keyframes pop { 0%{transform:scale(.7);opacity:0} 60%{transform:scale(1.1)} 100%{transform:scale(1);opacity:1} }
+    .pop { animation:pop .35s ease; }
+  </style>
+</head>
+<body>
+  <div class="max-w-sm mx-auto px-3 py-5">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-3">
+      <a href="index.html" class="text-green-300 hover:text-white text-sm">← Back</a>
+      <h1 class="text-lg font-black gold">🎰 Baccarat</h1>
+      <div class="flex items-center gap-3">
+        <button onclick="openInfo()" class="info-btn">i</button>
+        <button onclick="resetGame()" class="text-green-300 hover:text-white text-sm">Reset</button>
+      </div>
+    </div>
+
+    <!-- Chips bar -->
+    <div class="glass rounded-xl px-4 py-2 flex justify-between items-center mb-3 text-sm">
+      <span class="text-green-300">Chips: <span id="chipsDisplay" class="gold font-black text-base">$200</span></span>
+      <span id="statName" class="text-yellow-400 font-bold text-xs truncate max-w-28">—</span>
+      <span class="text-green-300">Total Bet: <span id="totalBetDisplay" class="text-white font-black text-base">$0</span></span>
+    </div>
+
+    <!-- Bet zones -->
+    <div class="flex gap-2 mb-3">
+      <div id="zonePlayer" class="bet-zone flex-1 p-3 text-center active" onclick="selectZone('player')">
+        <div class="text-xs font-bold text-white mb-0.5">PLAYER</div>
+        <div class="text-xs text-green-400 mb-1">pays 1:1</div>
+        <div id="betPlayerAmt" class="text-lg font-black gold">$0</div>
+      </div>
+      <div id="zoneTie" class="bet-zone flex-1 p-3 text-center" onclick="selectZone('tie')">
+        <div class="text-xs font-bold text-white mb-0.5">TIE</div>
+        <div class="text-xs text-green-400 mb-1">pays 8:1</div>
+        <div id="betTieAmt" class="text-lg font-black gold">$0</div>
+      </div>
+      <div id="zoneBanker" class="bet-zone flex-1 p-3 text-center" onclick="selectZone('banker')">
+        <div class="text-xs font-bold text-white mb-0.5">BANKER</div>
+        <div class="text-xs text-green-400 mb-1">pays 0.95:1</div>
+        <div id="betBankerAmt" class="text-lg font-black gold">$0</div>
+      </div>
+    </div>
+
+    <!-- Hand display (hidden until play) -->
+    <div id="handArea" class="hidden glass rounded-xl p-4 mb-3">
+      <div class="flex justify-around items-start">
+        <!-- Player hand -->
+        <div class="text-center">
+          <p class="text-xs text-green-300 font-semibold mb-2">PLAYER</p>
+          <div id="pCards" class="flex gap-1.5 justify-center mb-2"></div>
+          <div id="pScore" class="score-badge text-white">—</div>
+        </div>
+        <!-- Banker hand -->
+        <div class="text-center">
+          <p class="text-xs text-green-300 font-semibold mb-2">BANKER</p>
+          <div id="bCards" class="flex gap-1.5 justify-center mb-2"></div>
+          <div id="bScore" class="score-badge text-white">—</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Result banner (hidden until done) -->
+    <div id="resultBanner" class="hidden glass rounded-xl p-3 mb-3 text-center">
+      <div id="resultMsg" class="text-xl font-black gold mb-0.5"></div>
+      <div id="resultSub" class="text-sm text-green-300"></div>
+    </div>
+
+    <!-- Action panel -->
+    <div class="glass rounded-xl p-4">
+      <!-- BET PHASE -->
+      <div id="betPhase">
+        <p class="text-xs text-green-400 text-center mb-3">
+          Betting on: <span id="activeZoneLabel" class="text-yellow-400 font-bold">Player</span>
+          &nbsp;·&nbsp; Click a zone above to switch
+        </p>
+        <div class="flex justify-center gap-2 mb-3">
+          <button class="chip-btn" style="background:#c0392b;border-color:#e74c3c;color:white" onclick="addBet(5)">$5</button>
+          <button class="chip-btn" style="background:#1a5276;border-color:#2e86c1;color:white" onclick="addBet(10)">$10</button>
+          <button class="chip-btn" style="background:#1e8449;border-color:#27ae60;color:white" onclick="addBet(25)">$25</button>
+          <button class="chip-btn" style="background:#7d3c98;border-color:#9b59b6;color:white" onclick="addBet(50)">$50</button>
+          <button class="chip-btn" style="background:#b7950b;border-color:#f0c040;color:#1a1000" onclick="addBet(100)">$100</button>
+        </div>
+        <div class="flex gap-2">
+          <button onclick="clearBets()" class="flex-1 py-2.5 rounded-xl text-sm font-bold text-green-300" style="background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.15)">Clear</button>
+          <button id="dealBtn" onclick="deal()" class="btn-gold flex-1 py-2.5 rounded-xl text-base" disabled>Deal</button>
+        </div>
+      </div>
+
+      <!-- DONE PHASE -->
+      <div id="donePhase" class="hidden text-center">
+        <button onclick="nextHand()" class="btn-gold w-full py-3 rounded-xl text-base">Next Hand</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Info Modal -->
+  <div id="infoModal" class="modal" onclick="if(event.target===this)this.classList.remove('open')">
+    <div class="glass rounded-2xl p-5 w-full max-w-sm" style="border:2px solid rgba(240,192,64,.35);max-height:92vh;overflow-y:auto">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-black gold">🎰 How to Play</h2>
+        <button onclick="document.getElementById('infoModal').classList.remove('open')" class="text-green-300 text-xl font-bold">✕</button>
+      </div>
+      <div class="info-section">
+        <h3>Goal</h3>
+        <div class="info-row"><span>🎯</span><span>Bet on whether the Player hand or Banker hand will be closer to 9 — or if they'll tie.</span></div>
+      </div>
+      <div class="info-section">
+        <h3>Card Values</h3>
+        <div class="info-row"><span>🔢</span><span>Ace = 1 &nbsp;·&nbsp; 2–9 = face value &nbsp;·&nbsp; 10, J, Q, K = 0</span></div>
+        <div class="info-row"><span>➕</span><span>Hand total = sum of cards mod 10 (so a 7 and 8 = 15 → value is 5).</span></div>
+      </div>
+      <div class="info-section">
+        <h3>Betting</h3>
+        <div class="info-row"><span>👤</span><span><strong style="color:#f0c040">Player</strong> — pays 1:1 if Player hand wins.</span></div>
+        <div class="info-row"><span>🏦</span><span><strong style="color:#f0c040">Banker</strong> — pays 0.95:1 (5% commission) if Banker wins. Slightly better odds.</span></div>
+        <div class="info-row"><span>🤝</span><span><strong style="color:#f0c040">Tie</strong> — pays 8:1 if both hands equal. All bets on Player/Banker are returned on a tie.</span></div>
+      </div>
+      <div class="info-section">
+        <h3>Drawing Rules</h3>
+        <div class="info-row"><span>⭐</span><span><strong style="color:#f0c040">Natural:</strong> If either hand totals 8 or 9 on the first 2 cards — no more cards drawn.</span></div>
+        <div class="info-row"><span>👤</span><span><strong style="color:#f0c040">Player</strong> draws a 3rd card on total 0–5, stands on 6–7.</span></div>
+        <div class="info-row"><span>🏦</span><span><strong style="color:#f0c040">Banker</strong> follows specific rules based on their total and whether Player drew — handled automatically.</span></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SUITS  = ['clovers','diamonds','hearts','spades'];
+    const VALUES = ['ace','2','3','4','5','6','7','8','9','10','jack','queen','king'];
+
+    const pName = localStorage.getItem('pcp_name') || 'Player';
+    document.getElementById('statName').textContent = pName;
+
+    let G = { chips: 200, bets: { player: 0, tie: 0, banker: 0 }, activeZone: 'player', pHand: [], bHand: [], deck: [], phase: 'bet' };
+
+    // ── Card math ─────────────────────────────────────
+    function bVal(c) {
+      if (c.v === 'ace') return 1;
+      if (['10','jack','queen','king'].includes(c.v)) return 0;
+      return parseInt(c.v);
+    }
+    function hVal(hand) { return hand.reduce((s, c) => s + bVal(c), 0) % 10; }
+    function isNatural(hand) { return hand.length === 2 && hVal(hand) >= 8; }
+
+    // ── Deck ──────────────────────────────────────────
+    function buildDeck() {
+      // 6-deck shoe for realistic odds
+      const d = [];
+      for (let n = 0; n < 6; n++)
+        for (const s of SUITS) VALUES.forEach(v => d.push({ s, v, img: `cards/${s}/${v}.jpg` }));
+      for (let i = d.length - 1; i > 0; i--) { const j = Math.floor(Math.random()*(i+1)); [d[i],d[j]]=[d[j],d[i]]; }
+      return d;
+    }
+
+    // ── Betting ───────────────────────────────────────
+    function selectZone(zone) {
+      G.activeZone = zone;
+      ['player','tie','banker'].forEach(z => {
+        const el = document.getElementById('zone' + z.charAt(0).toUpperCase() + z.slice(1));
+        el.classList.toggle('active', z === zone);
+      });
+      document.getElementById('activeZoneLabel').textContent = zone.charAt(0).toUpperCase() + zone.slice(1);
+    }
+
+    function addBet(amt) {
+      const totalBet = G.bets.player + G.bets.tie + G.bets.banker;
+      const add = Math.min(amt, G.chips - totalBet);
+      if (add <= 0) return;
+      G.bets[G.activeZone] += add;
+      updateBetDisplay();
+    }
+
+    function clearBets() {
+      G.bets = { player: 0, tie: 0, banker: 0 };
+      updateBetDisplay();
+    }
+
+    function updateBetDisplay() {
+      document.getElementById('betPlayerAmt').textContent = '$' + G.bets.player;
+      document.getElementById('betTieAmt').textContent = '$' + G.bets.tie;
+      document.getElementById('betBankerAmt').textContent = '$' + G.bets.banker;
+      const total = G.bets.player + G.bets.tie + G.bets.banker;
+      document.getElementById('totalBetDisplay').textContent = '$' + total;
+      document.getElementById('dealBtn').disabled = total === 0;
+    }
+
+    // ── Deal & draw ───────────────────────────────────
+    function deal() {
+      if (!G.deck.length || G.deck.length < 20) G.deck = buildDeck();
+      G.pHand = [G.deck.pop(), G.deck.pop()];
+      G.bHand = [G.deck.pop(), G.deck.pop()];
+      G.phase = 'play';
+
+      document.getElementById('handArea').classList.remove('hidden');
+      document.getElementById('resultBanner').classList.add('hidden');
+      document.getElementById('betPhase').classList.add('hidden');
+
+      // Reset zone highlights
+      ['player','tie','banker'].forEach(z => {
+        document.getElementById('zone' + z.charAt(0).toUpperCase() + z.slice(1)).classList.remove('winner');
+      });
+
+      // Deal cards with animation delay
+      renderCards(false, false);
+      setTimeout(() => renderCards(true, false), 300);
+      setTimeout(() => {
+        renderCards(true, true);
+        setTimeout(resolveHands, 400);
+      }, 700);
+    }
+
+    function renderCards(showP, showB) {
+      const pEl = document.getElementById('pCards');
+      const bEl = document.getElementById('bCards');
+      if (showP) {
+        pEl.innerHTML = G.pHand.map(c => `<div class="card deal-in"><img src="${c.img}"></div>`).join('');
+        document.getElementById('pScore').textContent = hVal(G.pHand);
+        document.getElementById('pScore').className = 'score-badge ' + (isNatural(G.pHand) ? 'natural' : 'text-white');
+      }
+      if (showB) {
+        bEl.innerHTML = G.bHand.map(c => `<div class="card deal-in"><img src="${c.img}"></div>`).join('');
+        document.getElementById('bScore').textContent = hVal(G.bHand);
+        document.getElementById('bScore').className = 'score-badge ' + (isNatural(G.bHand) ? 'natural' : 'text-white');
+      }
+    }
+
+    function resolveHands() {
+      const pT = hVal(G.pHand);
+      const bT = hVal(G.bHand);
+
+      // Natural — no more draws
+      if (pT >= 8 || bT >= 8) { settle(); return; }
+
+      let delay = 0;
+
+      // Player third card
+      let pDrew = false, pThird = null;
+      if (pT <= 5) {
+        const card = G.deck.pop();
+        G.pHand.push(card);
+        pDrew = true;
+        pThird = bVal(card);
+        delay = 500;
+        setTimeout(() => {
+          document.getElementById('pCards').innerHTML = G.pHand.map(c => `<div class="card deal-in"><img src="${c.img}"></div>`).join('');
+          document.getElementById('pScore').textContent = hVal(G.pHand);
+        }, 200);
+      }
+
+      // Banker third card (standard Baccarat rules)
+      const bT2 = hVal(G.bHand);
+      let bankerDraws = false;
+      if (!pDrew) {
+        bankerDraws = bT2 <= 5;
+      } else {
+        if      (bT2 <= 2) bankerDraws = true;
+        else if (bT2 === 3) bankerDraws = pThird !== 8;
+        else if (bT2 === 4) bankerDraws = [2,3,4,5,6,7].includes(pThird);
+        else if (bT2 === 5) bankerDraws = [4,5,6,7].includes(pThird);
+        else if (bT2 === 6) bankerDraws = [6,7].includes(pThird);
+        // bT2 === 7: stand
+      }
+
+      if (bankerDraws) {
+        const card = G.deck.pop();
+        G.bHand.push(card);
+        setTimeout(() => {
+          document.getElementById('bCards').innerHTML = G.bHand.map(c => `<div class="card deal-in"><img src="${c.img}"></div>`).join('');
+          document.getElementById('bScore').textContent = hVal(G.bHand);
+          setTimeout(settle, 400);
+        }, delay + 200);
+      } else {
+        setTimeout(settle, delay + 300);
+      }
+    }
+
+    // ── Settle bets ───────────────────────────────────
+    function settle() {
+      const pFinal = hVal(G.pHand);
+      const bFinal = hVal(G.bHand);
+
+      let winner;
+      if (pFinal > bFinal) winner = 'player';
+      else if (bFinal > pFinal) winner = 'banker';
+      else winner = 'tie';
+
+      const totalBet = G.bets.player + G.bets.tie + G.bets.banker;
+      let winAmt = 0;
+
+      if (winner === 'player') {
+        winAmt = G.bets.player * 2; // win + original
+        // Tie bets lost; banker bets lost
+      } else if (winner === 'banker') {
+        winAmt = Math.floor(G.bets.banker * 1.95); // 5% commission
+        // Tie bets lost; player bets lost
+      } else { // tie
+        winAmt = G.bets.tie * 9;        // 8:1 payout
+        winAmt += G.bets.player;        // player bet returned
+        winAmt += G.bets.banker;        // banker bet returned
+      }
+
+      const net = winAmt - totalBet;
+      G.chips = G.chips - totalBet + winAmt;
+      if (G.chips <= 0) G.chips = 0;
+
+      // Highlight winner zone
+      const zoneMap = { player: 'zonePlayer', banker: 'zoneBanker', tie: 'zoneTie' };
+      document.getElementById(zoneMap[winner]).classList.add('winner');
+
+      const winLabel = { player: 'Player Wins!', banker: 'Banker Wins!', tie: "It's a Tie!" };
+      const netStr = net > 0 ? `+$${net}` : net === 0 ? 'Bet returned' : `-$${Math.abs(net)}`;
+      const netColor = net > 0 ? '#4ade80' : net === 0 ? '#fbbf24' : '#f87171';
+
+      document.getElementById('resultMsg').textContent = winLabel[winner];
+      document.getElementById('resultMsg').style.color = winner === 'tie' ? '#fbbf24' : net > 0 ? '#4ade80' : '#f87171';
+      document.getElementById('resultSub').textContent = `Player: ${pFinal}  ·  Banker: ${bFinal}  ·  `;
+      document.getElementById('resultSub').innerHTML += `<span style="color:${netColor};font-weight:700">${netStr}</span>`;
+      document.getElementById('resultBanner').classList.remove('hidden');
+      document.getElementById('resultBanner').classList.add('pop');
+
+      document.getElementById('chipsDisplay').textContent = '$' + G.chips;
+      document.getElementById('donePhase').classList.remove('hidden');
+      G.phase = 'done';
+
+      // Leaderboard
+      if (G.chips > 200) {
+        const scores = JSON.parse(localStorage.getItem('pcp_lb_baccarat') || '[]');
+        const ex = scores.find(s => s.name === pName);
+        if (ex) { if (G.chips > ex.score) { ex.score = G.chips; ex.date = new Date().toLocaleDateString(); } }
+        else scores.push({ name: pName, score: G.chips, date: new Date().toLocaleDateString() });
+        scores.sort((a, b) => b.score - a.score);
+        scores.splice(10);
+        localStorage.setItem('pcp_lb_baccarat', JSON.stringify(scores));
+      }
+    }
+
+    // ── Next hand ─────────────────────────────────────
+    function nextHand() {
+      if (G.chips <= 0) G.chips = 200;
+      G.bets = { player: 0, tie: 0, banker: 0 };
+      G.pHand = []; G.bHand = [];
+      G.phase = 'bet';
+      document.getElementById('handArea').classList.add('hidden');
+      document.getElementById('resultBanner').classList.add('hidden');
+      document.getElementById('donePhase').classList.add('hidden');
+      document.getElementById('betPhase').classList.remove('hidden');
+      document.getElementById('pCards').innerHTML = '';
+      document.getElementById('bCards').innerHTML = '';
+      document.getElementById('pScore').textContent = '—';
+      document.getElementById('bScore').textContent = '—';
+      ['player','tie','banker'].forEach(z => {
+        const el = document.getElementById('zone' + z.charAt(0).toUpperCase() + z.slice(1));
+        el.classList.remove('winner', 'active');
+      });
+      selectZone('player');
+      document.getElementById('chipsDisplay').textContent = '$' + G.chips;
+      updateBetDisplay();
+    }
+
+    function resetGame() { G.chips = 200; nextHand(); }
+
+    function openInfo() { document.getElementById('infoModal').classList.add('open'); }
+
+    // Init
+    document.getElementById('chipsDisplay').textContent = '$' + G.chips;
+    updateBetDisplay();
+  </script>
+</body>
+</html>

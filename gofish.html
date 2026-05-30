@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Go Fish — P's Card Play</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { background: radial-gradient(ellipse at 50% 30%, #2d7a50 0%, #1b4d35 65%, #0f2d1f 100%); min-height: 100vh; font-family: 'Segoe UI', system-ui, sans-serif; }
+    .gold { color: #f0c040; }
+    .glass { background: rgba(0,0,0,0.35); border: 1px solid rgba(255,215,0,0.2); }
+    .btn-gold { background: linear-gradient(135deg,#b8860b,#f0c040,#b8860b); color:#1a1000; font-weight:700; transition:all .2s; }
+    .btn-gold:hover { filter:brightness(1.1); transform:translateY(-1px); }
+    .btn-gold:active { transform:translateY(0); }
+    button:disabled { opacity:.4; cursor:not-allowed; transform:none !important; filter:none !important; }
+    .info-btn { width:24px; height:24px; border-radius:50%; border:1.5px solid rgba(240,192,64,.55); color:#f0c040; font-size:13px; font-weight:700; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; background:rgba(240,192,64,.08); }
+    .info-btn:hover { background:rgba(240,192,64,.22); }
+    .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,.82); align-items:center; justify-content:center; z-index:50; padding:12px; }
+    .modal.open { display:flex; }
+    .info-section { margin-bottom:13px; }
+    .info-section h3 { color:#f0c040; font-weight:700; font-size:.78rem; text-transform:uppercase; letter-spacing:.05em; margin-bottom:5px; }
+    .info-row { display:flex; gap:7px; align-items:flex-start; margin-bottom:4px; font-size:.8rem; color:rgba(255,255,255,.85); line-height:1.4; }
+    .info-row span:first-child { color:#f0c040; flex-shrink:0; min-width:16px; }
+
+    /* Cards */
+    .card { width:52px; height:73px; border-radius:7px; overflow:hidden; border:1.5px solid rgba(255,255,255,.2); box-shadow:1px 3px 8px rgba(0,0,0,.5); background:#1c3878; flex-shrink:0; }
+    .card img { width:100%; height:100%; object-fit:cover; display:block; }
+    .card.selected { border-color:#f0c040; box-shadow:0 0 10px rgba(240,192,64,.6); transform:translateY(-6px); }
+
+    /* Hand scroll */
+    .hand-row { display:flex; gap:5px; overflow-x:auto; padding-bottom:6px; padding-top:6px; }
+    .hand-row::-webkit-scrollbar { height:3px; }
+    .hand-row::-webkit-scrollbar-thumb { background:rgba(255,215,0,.3); border-radius:2px; }
+
+    /* Rank ask buttons */
+    .rank-btn { padding:6px 10px; border-radius:10px; font-weight:700; font-size:.78rem; background:rgba(0,0,0,.35); border:1.5px solid rgba(255,215,0,.3); color:#f0c040; cursor:pointer; transition:all .2s; white-space:nowrap; }
+    .rank-btn:hover { background:rgba(240,192,64,.2); border-color:#f0c040; transform:translateY(-1px); }
+    .rank-btn:active { transform:translateY(0); }
+    .rank-btn.has-many { border-color:#f0c040; background:rgba(240,192,64,.12); }
+
+    /* Book chips */
+    .book-chip { width:40px; height:56px; border-radius:6px; overflow:hidden; border:1.5px solid rgba(255,215,0,.5); box-shadow:0 2px 6px rgba(0,0,0,.4); flex-shrink:0; }
+    .book-chip img { width:100%; height:100%; object-fit:cover; display:block; }
+
+    @keyframes pop { 0%{transform:scale(.7);opacity:0} 60%{transform:scale(1.1)} 100%{transform:scale(1);opacity:1} }
+    .pop { animation:pop .3s ease; }
+    @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
+    .shake { animation:shake .3s ease; }
+  </style>
+</head>
+<body>
+  <div class="max-w-sm mx-auto px-3 py-5">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-3">
+      <a href="index.html" class="text-green-300 hover:text-white text-sm">← Back</a>
+      <h1 class="text-lg font-black gold">🐟 Go Fish</h1>
+      <div class="flex items-center gap-3">
+        <button onclick="openInfo()" class="info-btn">i</button>
+        <button onclick="newGame()" class="text-green-300 hover:text-white text-sm">New Game</button>
+      </div>
+    </div>
+
+    <!-- Score bar -->
+    <div class="glass rounded-xl px-4 py-2 flex justify-between items-center mb-3 text-sm">
+      <span class="text-green-300">Your books: <span id="pBooks" class="gold font-black text-base">0</span></span>
+      <span id="deckCount" class="text-xs text-green-400">52 in deck</span>
+      <span class="text-green-300">CPU books: <span id="cBooks" class="text-red-400 font-black text-base">0</span></span>
+    </div>
+
+    <!-- CPU zone -->
+    <div class="glass rounded-xl p-3 mb-3">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-xs text-green-300 font-semibold">CPU HAND</span>
+        <span id="cpuHandCount" class="text-xs text-yellow-400 font-bold">7 cards</span>
+      </div>
+      <!-- CPU books row -->
+      <div id="cpuBooksRow" class="hand-row min-h-8 mb-2"></div>
+      <!-- CPU face-down cards -->
+      <div id="cpuHandRow" class="hand-row"></div>
+    </div>
+
+    <!-- Game log -->
+    <div id="gameLog" class="glass rounded-xl px-4 py-3 mb-3 text-sm text-center font-semibold text-white min-h-12 flex items-center justify-center"></div>
+
+    <!-- Player zone -->
+    <div class="glass rounded-xl p-3 mb-3">
+      <div class="flex items-center justify-between mb-2">
+        <span id="playerLabel" class="text-xs text-green-300 font-semibold">YOUR HAND</span>
+        <span id="playerHandCount" class="text-xs text-yellow-400 font-bold">7 cards</span>
+      </div>
+      <!-- Player books -->
+      <div id="playerBooksRow" class="hand-row min-h-8 mb-2"></div>
+      <!-- Player cards -->
+      <div id="playerHandRow" class="hand-row"></div>
+    </div>
+
+    <!-- Action zone -->
+    <div class="glass rounded-xl p-4">
+      <!-- Ask phase -->
+      <div id="askPhase">
+        <p class="text-xs text-green-300 mb-2 text-center" id="askPrompt">Pick a rank to ask the CPU for:</p>
+        <div id="rankButtons" class="flex flex-wrap gap-2 justify-center"></div>
+      </div>
+      <!-- CPU thinking -->
+      <div id="cpuPhase" class="hidden text-center py-2">
+        <p class="text-green-300 text-sm animate-pulse">CPU is thinking...</p>
+      </div>
+      <!-- Game over -->
+      <div id="donePhase" class="hidden text-center">
+        <div id="doneEmoji" class="text-4xl mb-1">🏆</div>
+        <div id="doneTitle" class="text-xl font-black gold mb-1"></div>
+        <div id="doneSub" class="text-sm text-green-300 mb-3"></div>
+        <div id="doneRank" class="text-yellow-400 text-sm mb-3"></div>
+        <button onclick="newGame()" class="btn-gold w-full py-3 rounded-xl">Play Again</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Info Modal -->
+  <div id="infoModal" class="modal" onclick="if(event.target===this)this.classList.remove('open')">
+    <div class="glass rounded-2xl p-5 w-full max-w-sm" style="border:2px solid rgba(240,192,64,.35);max-height:92vh;overflow-y:auto">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-black gold">🐟 How to Play</h2>
+        <button onclick="document.getElementById('infoModal').classList.remove('open')" class="text-green-300 text-xl font-bold">✕</button>
+      </div>
+      <div class="info-section">
+        <h3>Goal</h3>
+        <div class="info-row"><span>🎯</span><span>Collect the most <strong style="color:#f0c040">books</strong> (all 4 cards of a rank, e.g. all four 7s) to win.</span></div>
+      </div>
+      <div class="info-section">
+        <h3>Your Turn</h3>
+        <div class="info-row"><span>1.</span><span>Choose a rank from your hand to ask the CPU for.</span></div>
+        <div class="info-row"><span>2.</span><span>If the CPU has any cards of that rank, they hand them all over — and you go again!</span></div>
+        <div class="info-row"><span>3.</span><span>If the CPU has none — <strong style="color:#4ade80">Go Fish!</strong> You draw from the deck.</span></div>
+        <div class="info-row"><span>4.</span><span>If the drawn card matches what you asked for, you go again. Otherwise it's the CPU's turn.</span></div>
+      </div>
+      <div class="info-section">
+        <h3>Books</h3>
+        <div class="info-row"><span>📚</span><span>When you collect all 4 cards of a rank, it forms a <strong style="color:#f0c040">book</strong> and is set aside automatically.</span></div>
+      </div>
+      <div class="info-section" style="margin-bottom:0">
+        <h3>Winning</h3>
+        <div class="info-row"><span>🏆</span><span>The game ends when all 13 books are collected. Most books wins!</span></div>
+        <div class="info-row"><span>🃏</span><span>If the deck runs out and a player has no cards, they can't play further.</span></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SUITS  = ['clovers','diamonds','hearts','spades'];
+    const VALUES = ['ace','2','3','4','5','6','7','8','9','10','jack','queen','king'];
+    const RANK_LABEL = { ace:'Aces','2':'2s','3':'3s','4':'4s','5':'5s','6':'6s','7':'7s','8':'8s','9':'9s','10':'10s',jack:'Jacks',queen:'Queens',king:'Kings' };
+
+    const pName = localStorage.getItem('pcp_name') || 'Player';
+    document.getElementById('playerLabel').textContent = pName.toUpperCase() + ' HAND';
+
+    let G = {};
+
+    // ── Build & shuffle deck ──────────────────────────
+    function buildDeck() {
+      const d = [];
+      for (const s of SUITS) VALUES.forEach(v => d.push({ s, v, img: `cards/${s}/${v}.jpg` }));
+      for (let i = d.length - 1; i > 0; i--) { const j = Math.floor(Math.random()*(i+1)); [d[i],d[j]]=[d[j],d[i]]; }
+      return d;
+    }
+
+    // ── Check and pull books from a hand ─────────────
+    function pullBooks(hand, bookStore) {
+      const freq = {};
+      hand.forEach(c => freq[c.v] = (freq[c.v] || 0) + 1);
+      let found = false;
+      for (const [v, cnt] of Object.entries(freq)) {
+        if (cnt === 4) {
+          // Use the first card of that rank as the book representative image
+          const rep = hand.find(c => c.v === v);
+          bookStore.push(rep);
+          hand.splice(0, hand.length, ...hand.filter(c => c.v !== v));
+          found = true;
+        }
+      }
+      return found;
+    }
+
+    // ── New game ──────────────────────────────────────
+    function newGame() {
+      document.getElementById('donePhase').classList.add('hidden');
+      document.getElementById('askPhase').classList.remove('hidden');
+      document.getElementById('cpuPhase').classList.add('hidden');
+
+      const deck = buildDeck();
+      G = {
+        deck,
+        pHand: [], cHand: [],
+        pBooks: [], cBooks: [],
+        phase: 'player', // player | cpu | done
+        lastAsked: null,
+        cpuMemory: {}   // tracks what player has asked for
+      };
+
+      // Deal 7 cards each
+      for (let i = 0; i < 7; i++) { G.pHand.push(G.deck.pop()); G.cHand.push(G.deck.pop()); }
+
+      // Check initial books (rare but possible)
+      pullBooks(G.pHand, G.pBooks);
+      pullBooks(G.cHand, G.cBooks);
+
+      log('Game started! Ask the CPU for a rank you hold.');
+      renderAll();
+      buildRankButtons();
+    }
+
+    // ── Draw from deck ────────────────────────────────
+    function drawCard(who) {
+      if (!G.deck.length) return null;
+      const card = G.deck.pop();
+      if (who === 'player') G.pHand.push(card);
+      else G.cHand.push(card);
+      return card;
+    }
+
+    // ── Player asks for a rank ────────────────────────
+    function playerAsk(rank) {
+      if (G.phase !== 'player') return;
+      G.lastAsked = rank;
+
+      // Check if player actually holds this rank
+      if (!G.pHand.some(c => c.v === rank)) return;
+
+      // Track for CPU memory
+      G.cpuMemory[rank] = (G.cpuMemory[rank] || 0) + 1;
+
+      const got = G.cHand.filter(c => c.v === rank);
+      if (got.length) {
+        // CPU has them — transfer all
+        G.cHand = G.cHand.filter(c => c.v !== rank);
+        G.pHand.push(...got);
+        pullBooks(G.pHand, G.pBooks);
+        log(`CPU had ${got.length} ${RANK_LABEL[rank]}! You got them. Go again! 🎉`);
+        renderAll();
+        buildRankButtons();
+        checkGameOver();
+      } else {
+        // Go Fish
+        log(`Go Fish! 🐟 Drawing from the deck...`);
+        renderAll();
+        setTimeout(() => {
+          const drawn = drawCard('player');
+          if (!drawn) {
+            log('No cards left in deck. Turn passes to CPU.');
+            pullBooks(G.pHand, G.pBooks);
+            renderAll();
+            buildRankButtons();
+            checkGameOver() || cpuTurn();
+            return;
+          }
+          pullBooks(G.pHand, G.pBooks);
+          if (drawn.v === rank) {
+            log(`Lucky catch! Drew a ${RANK_LABEL[rank]} — go again! 🎣`);
+            renderAll();
+            buildRankButtons();
+            checkGameOver();
+          } else {
+            log(`Drew a ${drawn.v}. CPU's turn.`);
+            renderAll();
+            buildRankButtons();
+            if (!checkGameOver()) cpuTurn();
+          }
+        }, 700);
+      }
+    }
+
+    // ── CPU turn ──────────────────────────────────────
+    function cpuTurn() {
+      if (G.phase === 'done') return;
+      G.phase = 'cpu';
+      document.getElementById('askPhase').classList.add('hidden');
+      document.getElementById('cpuPhase').classList.remove('hidden');
+
+      setTimeout(() => {
+        if (!G.cHand.length) {
+          // CPU has no cards; if deck empty game may be over, else draw
+          if (G.deck.length) { drawCard('cpu'); pullBooks(G.cHand, G.cBooks); }
+          renderAll();
+          if (!checkGameOver()) { G.phase = 'player'; showAskPhase(); }
+          return;
+        }
+
+        // Pick rank to ask for — prefer ones player has asked for (memory), then most held
+        const freq = {};
+        G.cHand.forEach(c => freq[c.v] = (freq[c.v] || 0) + 1);
+
+        // Score each rank: count * 2 + memory bonus
+        let best = null, bestScore = -1;
+        for (const [v, cnt] of Object.entries(freq)) {
+          const score = cnt * 2 + (G.cpuMemory[v] || 0);
+          if (score > bestScore) { bestScore = score; best = v; }
+        }
+        const askRank = best;
+
+        const got = G.pHand.filter(c => c.v === askRank);
+        if (got.length) {
+          G.pHand = G.pHand.filter(c => c.v !== askRank);
+          G.cHand.push(...got);
+          pullBooks(G.cHand, G.cBooks);
+          log(`CPU asks for ${RANK_LABEL[askRank]} — you had ${got.length}! CPU goes again.`);
+          renderAll();
+          if (!checkGameOver()) cpuTurn();
+        } else {
+          log(`CPU asks for ${RANK_LABEL[askRank]}... Go Fish! 🐟`);
+          renderAll();
+          setTimeout(() => {
+            const drawn = drawCard('cpu');
+            if (!drawn) {
+              log('Deck empty. Your turn!');
+              renderAll();
+              if (!checkGameOver()) { G.phase = 'player'; showAskPhase(); }
+              return;
+            }
+            pullBooks(G.cHand, G.cBooks);
+            if (drawn.v === askRank) {
+              log(`CPU drew a ${RANK_LABEL[askRank]} — goes again!`);
+              renderAll();
+              if (!checkGameOver()) cpuTurn();
+            } else {
+              log(`CPU drew a card. Your turn!`);
+              renderAll();
+              if (!checkGameOver()) { G.phase = 'player'; showAskPhase(); }
+            }
+          }, 700);
+        }
+      }, 1000);
+    }
+
+    function showAskPhase() {
+      document.getElementById('cpuPhase').classList.add('hidden');
+      document.getElementById('askPhase').classList.remove('hidden');
+      buildRankButtons();
+    }
+
+    // ── Game over check ───────────────────────────────
+    function checkGameOver() {
+      const totalBooks = G.pBooks.length + G.cBooks.length;
+      const over = totalBooks === 13 || (G.deck.length === 0 && (!G.pHand.length || !G.cHand.length));
+      if (!over) return false;
+
+      G.phase = 'done';
+      document.getElementById('askPhase').classList.add('hidden');
+      document.getElementById('cpuPhase').classList.add('hidden');
+      document.getElementById('donePhase').classList.remove('hidden');
+
+      const pW = G.pBooks.length > G.cBooks.length;
+      const tie = G.pBooks.length === G.cBooks.length;
+
+      document.getElementById('doneEmoji').textContent = tie ? '🤝' : pW ? '🏆' : '😔';
+      document.getElementById('doneTitle').textContent = tie ? "It's a Tie!" : pW ? 'You Win!' : 'CPU Wins';
+      document.getElementById('doneTitle').style.color = tie ? '#fbbf24' : pW ? '#f0c040' : '#f87171';
+      document.getElementById('doneSub').textContent = `${G.pBooks.length} books vs CPU's ${G.cBooks.length} books`;
+
+      if (pW) {
+        const scores = JSON.parse(localStorage.getItem('pcp_lb_gofish') || '[]');
+        const ex = scores.find(s => s.name === pName);
+        if (ex) { ex.score++; ex.date = new Date().toLocaleDateString(); }
+        else scores.push({ name: pName, score: 1, date: new Date().toLocaleDateString() });
+        scores.sort((a, b) => b.score - a.score);
+        scores.splice(10);
+        localStorage.setItem('pcp_lb_gofish', JSON.stringify(scores));
+        const rank = scores.findIndex(s => s.name === pName) + 1;
+        document.getElementById('doneRank').textContent = rank <= 3 ? ['🥇 #1','🥈 #2','🥉 #3'][rank-1] + ' on the leaderboard!' : 'Win saved to leaderboard!';
+      } else {
+        document.getElementById('doneRank').textContent = '';
+      }
+      return true;
+    }
+
+    // ── Render ────────────────────────────────────────
+    function renderAll() {
+      // Deck count
+      document.getElementById('deckCount').textContent = G.deck.length + ' in deck';
+
+      // CPU hand (face-down backs)
+      const cRow = document.getElementById('cpuHandRow');
+      cRow.innerHTML = G.cHand.map(() =>
+        `<div class="card"><img src="cards/back.jpg"></div>`).join('');
+      document.getElementById('cpuHandCount').textContent = G.cHand.length + ' card' + (G.cHand.length !== 1 ? 's' : '');
+
+      // CPU books
+      document.getElementById('cpuBooksRow').innerHTML = G.cBooks.length
+        ? G.cBooks.map(c => `<div class="book-chip pop"><img src="${c.img}"></div>`).join('')
+        : '<span class="text-xs text-green-600 self-center">No books yet</span>';
+      document.getElementById('cBooks').textContent = G.cBooks.length;
+
+      // Player hand (face-up)
+      const pRow = document.getElementById('playerHandRow');
+      pRow.innerHTML = G.pHand.map(c =>
+        `<div class="card"><img src="${c.img}"></div>`).join('');
+      document.getElementById('playerHandCount').textContent = G.pHand.length + ' card' + (G.pHand.length !== 1 ? 's' : '');
+
+      // Player books
+      document.getElementById('playerBooksRow').innerHTML = G.pBooks.length
+        ? G.pBooks.map(c => `<div class="book-chip pop"><img src="${c.img}"></div>`).join('')
+        : '<span class="text-xs text-green-600 self-center">No books yet</span>';
+      document.getElementById('pBooks').textContent = G.pBooks.length;
+    }
+
+    function buildRankButtons() {
+      if (G.phase !== 'player') return;
+      const freq = {};
+      G.pHand.forEach(c => freq[c.v] = (freq[c.v] || 0) + 1);
+
+      // Order by VALUE order, only show ranks player holds
+      const container = document.getElementById('rankButtons');
+      container.innerHTML = '';
+
+      if (!Object.keys(freq).length) {
+        container.innerHTML = '<span class="text-xs text-green-500">No cards to ask with — drawing...</span>';
+        setTimeout(() => {
+          const drawn = drawCard('player');
+          if (drawn) { pullBooks(G.pHand, G.pBooks); renderAll(); buildRankButtons(); }
+          else if (!checkGameOver()) cpuTurn();
+        }, 800);
+        return;
+      }
+
+      VALUES.forEach(v => {
+        if (!freq[v]) return;
+        const btn = document.createElement('button');
+        btn.className = 'rank-btn' + (freq[v] >= 2 ? ' has-many' : '');
+        btn.textContent = RANK_LABEL[v] + (freq[v] > 1 ? ` (${freq[v]})` : '');
+        btn.onclick = () => playerAsk(v);
+        container.appendChild(btn);
+      });
+    }
+
+    function log(msg) {
+      const el = document.getElementById('gameLog');
+      el.textContent = msg;
+      el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop');
+    }
+
+    function openInfo() { document.getElementById('infoModal').classList.add('open'); }
+
+    newGame();
+  </script>
+</body>
+</html>
